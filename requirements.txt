@@ -1,8 +1,18 @@
 fastapi==0.111.0
 uvicorn[standard]==0.29.0
+
+# DB
 sqlalchemy==2.0.30
+
+# Validación
 pydantic[email]==2.7.1
 
+# Auth / Seguridad
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+
+# Forms (login OAuth2)
 python-multipart==0.0.9
+
+# Opcional pero recomendado
+python-dotenv==1.0.1
