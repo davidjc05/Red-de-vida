@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { getToken } from '../services/api';
+import { storage } from '../services/storage';
 import { View, ActivityIndicator } from 'react-native';
 import { Colors } from '../constants/colors';
 
@@ -10,12 +11,22 @@ export default function Index() {
   useEffect(() => {
     async function check() {
       const token = await getToken();
-      if (token) {
+      const role = await storage.getItem('role');
+      console.log("TOKEN:", token);
+      console.log("ROLE:", role);
+
+      if (!token) {
+        router.replace('/auth/login');
+        return;
+      }
+
+      if (role === 'admin') {
         router.replace('/(tabs)/routines');
       } else {
-        router.replace('/auth/login');
+        router.replace('/(tabs)/calendar');
       }
     }
+
     check();
   }, []);
 

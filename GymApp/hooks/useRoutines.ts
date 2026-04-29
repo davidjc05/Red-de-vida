@@ -2,7 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { getRoutines } from '../services/api';
 
 export type Exercise = { id: number; name: string; muscle_group: string; description?: string };
-export type Routine  = { id: number; name: string; owner_id: number; exercises: Exercise[] };
+export type Routine = { 
+  id: number; 
+  name: string; 
+  owner_id?: number;
+  user_id?: number;
+  exercises: Exercise[]; 
+};
 
 export function useRoutines() {
   const [routines, setRoutines] = useState<Routine[]>([]);
@@ -14,7 +20,9 @@ export function useRoutines() {
     setError(null);
     try {
       const data = await getRoutines();
-      setRoutines(data);
+      // Garantizar que exercises siempre es array
+      const normalized = data.map((r: any) => ({ ...r, exercises: r.exercises ?? [] }));
+      setRoutines(normalized);
     } catch (e: any) {
       setError(e.message);
     } finally {

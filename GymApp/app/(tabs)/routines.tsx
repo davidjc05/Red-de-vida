@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import {
   getExercises, createRoutine, addExerciseToRoutine,
-  assignRoutine, getUsers, deleteToken,
+  assignRoutine, getUsers, deleteToken,deleteRoutine,
 } from '../../services/api';
 import { useRoutines, type Routine, type Exercise } from '../../hooks/useRoutines';
 
@@ -134,19 +134,36 @@ export default function RoutinesScreen() {
 
   // ─── Guardar rutina ───────────────────────────────────────────────────────────
   const saveRoutine = async () => {
-    if (!routineName.trim()) { Alert.alert('Error', 'La rutina necesita un nombre'); return; }
+    if (!routineName.trim()) {
+      Alert.alert('Error', 'La rutina necesita un nombre');
+      return;
+    }
+
     const allEx = blocks.flatMap(b => b.exercises);
-    if (allEx.length === 0) { Alert.alert('Error', 'Añade al menos un ejercicio'); return; }
+
+    if (allEx.length === 0) {
+      Alert.alert('Error', 'Añade al menos un ejercicio');
+      return;
+    }
+
     setSaving(true);
+
     try {
       const routine = await createRoutine(routineName.trim());
-      // Añadir ejercicios secuencialmente para evitar race conditions
-      for (const ex of allEx) {
+
+      const uniqueExercises = Array.from(
+        new Map(allEx.map(ex => [ex.exerciseId, ex])).values()
+      );
+
+      for (const ex of uniqueExercises) {
         await addExerciseToRoutine(routine.id, ex.exerciseId);
       }
+
       await reload();
       setMode('list');
-      Alert.alert('✓ Guardada', `"${routineName}" creada con ${allEx.length} ejercicios.`);
+
+      Alert.alert('✓ Guardada', `"${routineName}" creada con ${uniqueExercises.length} ejercicios.`);
+      
     } catch (err: any) {
       Alert.alert('Error guardando', err.message);
     } finally {
@@ -574,7 +591,7 @@ export default function RoutinesScreen() {
                 <View style={{flex:1,marginLeft:12}}>
                   <Text style={[s.routineCardName,{color:C.text}]}>{routine.name}</Text>
                   <Text style={[s.routineCardSub,{color:C.textSub}]}>
-                    {routine.exercises.length} ejercicio{routine.exercises.length !== 1 ? 's' : ''}
+                    {(routine.exercises ?? []).length} ejercicio{(routine.exercises ?? []).length !== 1 ? 's' : ''}
                   </Text>
                 </View>
                 <View style={[s.savedBadge,{backgroundColor:Colors.primaryLight}]}>
@@ -583,9 +600,9 @@ export default function RoutinesScreen() {
               </View>
 
               {/* Pills de ejercicios */}
-              {routine.exercises.length > 0 && (
+              {(routine.exercises ?? []).length > 0 && (
                 <View style={s.exercisesPreview}>
-                  {routine.exercises.slice(0,4).map(ex => {
+                  {(routine.exercises ?? []).slice(0,4).map(ex => {
                     const colors = gc(ex.muscle_group);
                     return (
                       <View key={ex.id} style={[s.exPill,{backgroundColor:colors.bg,borderColor:colors.bg}]}>
@@ -593,7 +610,7 @@ export default function RoutinesScreen() {
                       </View>
                     );
                   })}
-                  {routine.exercises.length > 4 && (
+                  {(routine.exercises ?? []).length > 4 && (
                     <View style={[s.exPill,{backgroundColor:Colors.primaryLight,borderColor:Colors.primaryLight}]}>
                       <Text style={[s.exPillText,{color:Colors.primary}]}>+{routine.exercises.length-4} más</Text>
                     </View>
@@ -603,15 +620,38 @@ export default function RoutinesScreen() {
 
               {/* Footer */}
               <View style={[s.routineCardFooter,{borderTopColor:C.border}]}>
-                <TouchableOpacity style={[s.footerBtn,{borderColor:C.border}]}
-                  onPress={() => openAssignModal(routine)}>
-                  <Text style={[s.footerBtnText,{color:C.text}]}>👤 Asignar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[s.footerBtn,{borderColor:C.error+'44',backgroundColor:C.error+'08'}]}
-                  onPress={() => Alert.alert('Eliminar','¿Seguro?',[{text:'Cancelar',style:'cancel'},{text:'Eliminar',style:'destructive',onPress:()=>reload()}])}>
-                  <Text style={[s.footerBtnText,{color:C.error}]}>🗑 Eliminar</Text>
-                </TouchableOpacity>
-              </View>
+  
+              {/* BOTÓN ASIGNAR */}
+              <TouchableOpacity
+                style={[s.footerBtn,{borderColor:C.border}]}
+                onPress={() => openAssignModal(routine)}
+              >
+                <Text style={[s.footerBtnText,{color:C.text}]}>👤 Asignar</Text>
+              </TouchableOpacity>
+
+              {/* BOTÓN ELIMINAR */}
+              <TouchableOpacity
+                style={[s.footerBtn,{borderColor:C.error+'44',backgroundColor:C.error+'08'}]}
+                onPress={async () => {
+                  console.log("ELIMINANDO:", routine.id);
+
+                  try {
+                    const res = await deleteRoutine(routine.id);
+                    console.log("RESPUESTA OK:", res);
+
+                    await reload();
+                    Alert.alert('✓ Eliminada');
+
+                  } catch (err: any) {
+                    console.log("ERROR BACK:", err);
+                    Alert.alert('Error', err.message);
+                  }
+                }}
+                >
+                <Text style={[s.footerBtnText,{color:C.error}]}>🗑 Eliminar</Text>
+              </TouchableOpacity>
+
+            </View>
             </View>
           )}
         />

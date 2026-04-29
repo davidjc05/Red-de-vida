@@ -6,7 +6,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
-import { login } from '../../services/api';
+import { login,getMe } from '../../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -19,10 +20,23 @@ export default function LoginScreen() {
       Alert.alert('Error', 'Rellena todos los campos');
       return;
     }
+
     setLoading(true);
+
     try {
-      await login(email.trim(), password);
-      router.replace('/(tabs)/routines');
+      const data = await login(email.trim(), password);
+
+
+      const me = await getMe();
+
+      console.log("ROLE GUARDADO:", me.role);
+
+      if (me.role === 'admin') {
+        router.replace('/(tabs)/routines');
+      } else {
+        router.replace('/(tabs)/exercises');
+      }
+
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
