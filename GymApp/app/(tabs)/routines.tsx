@@ -7,8 +7,9 @@ import {
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import {
-  getExercises, createRoutine, addExerciseToRoutine,
-  assignRoutine, getUsers, deleteToken,deleteRoutine,
+  getExercises, createRoutine, addExercisesBulk,
+  assignRoutine, getUsers, deleteToken,deleteRoutine,getAssignmentsByRoutine,deleteAssignment,
+  clearRoutineExercises,updateRoutine
 } from '../../services/api';
 import { useRoutines, type Routine, type Exercise } from '../../hooks/useRoutines';
 
@@ -50,6 +51,7 @@ export default function RoutinesScreen() {
   // Usuarios para asignar
   const [users,     setUsers]     = useState<User[]>([]);
 
+
   // UI
   const [mode,      setMode]      = useState<'list'|'builder'>('list');
   const [saving,    setSaving]    = useState(false);
@@ -67,9 +69,14 @@ export default function RoutinesScreen() {
   // Modal asignar rutina a usuario
   const [showAssignModal,  setShowAssignModal]  = useState(false);
   const [selectedRoutine,  setSelectedRoutine]  = useState<Routine|null>(null);
-  const [selectedUserId,   setSelectedUserId]   = useState<number|null>(null);
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+  const [assignDate, setAssignDate] = useState('');
   const [assignNote,       setAssignNote]       = useState('');
   const [assigning,        setAssigning]        = useState(false);
+  const [showAssignmentsModal, setShowAssignmentsModal] = useState(false);
+  const [routineAssignments, setRoutineAssignments] = useState<any[]>([]);
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
+  const [editingRoutineId, setEditingRoutineId] = useState<number | null>(null);
 
   const C = {
     bg:      isDark ? '#0F172A' : '#F5F5F5',
@@ -98,6 +105,32 @@ export default function RoutinesScreen() {
   const openBuilder = () => {
     setRoutineName(''); setBlocks([]); setSelectedBlockId(null);
     setBuilderTab('bloques'); setShowNameModal(true); setMode('builder');
+  };
+
+  const openEditRoutine = (routine: Routine) => {
+    setEditingRoutineId(routine.id); // 🔥 CLAVE
+
+    setRoutineName(routine.name);
+
+    const block: Block = {
+      localId: uid(),
+      name: 'Bloque 1',
+      color: BLOCK_COLORS[0],
+      collapsed: false,
+      exercises: (routine.exercises ?? []).map(ex => ({
+        localId: uid(),
+        exerciseId: ex.id,
+        name: ex.name,
+        muscle_group: ex.muscle_group,
+        series: '3',
+        objetivo: '10 reps',
+        descanso: '60s',
+      }))
+    };
+
+    setBlocks([block]);
+    setSelectedBlockId(block.localId);
+    setMode('builder');
   };
 
   const addBlock = useCallback(() => {
@@ -149,23 +182,48 @@ export default function RoutinesScreen() {
     setSaving(true);
 
     try {
-      const routine = await createRoutine(routineName.trim());
+      let routine;
 
-      const uniqueExercises = Array.from(
-        new Map(allEx.map(ex => [ex.exerciseId, ex])).values()
-      );
+      if (editingRoutineId) {
 
-      for (const ex of uniqueExercises) {
-        await addExerciseToRoutine(routine.id, ex.exerciseId);
+        await updateRoutine(editingRoutineId, routineName.trim());
+
+        // BORRAR ejercicios antiguos
+        await clearRoutineExercises(editingRoutineId);
+
+        // 🔥 AÑADIR NUEVOS
+        const uniqueExercises = Array.from(
+          new Map(allEx.map(ex => [ex.exerciseId, ex])).values()
+        );
+
+        await addExercisesBulk(
+          editingRoutineId,
+          uniqueExercises.map(ex => ex.exerciseId)
+        );
+
+        Alert.alert('✓ Rutina actualizada');
+      } else {
+        // CREAR
+        routine = await createRoutine(routineName.trim());
+
+        const uniqueExercises = Array.from(
+          new Map(allEx.map(ex => [ex.exerciseId, ex])).values()
+        );
+
+        await addExercisesBulk(
+          routine.id,
+          uniqueExercises.map(ex => ex.exerciseId)
+        );
+
+        Alert.alert('✓ Rutina creada');
       }
 
       await reload();
       setMode('list');
+      setEditingRoutineId(null);
 
-      Alert.alert('✓ Guardada', `"${routineName}" creada con ${uniqueExercises.length} ejercicios.`);
-      
     } catch (err: any) {
-      Alert.alert('Error guardando', err.message);
+      Alert.alert('Error', err.message);
     } finally {
       setSaving(false);
     }
@@ -174,22 +232,67 @@ export default function RoutinesScreen() {
   // ─── Asignar rutina a usuario ─────────────────────────────────────────────────
   const openAssignModal = (routine: Routine) => {
     setSelectedRoutine(routine);
-    setSelectedUserId(null);
+    setSelectedUserIds([]);
+    setAssignDate('');
     setAssignNote('');
     setShowAssignModal(true);
   };
 
   const confirmAssign = async () => {
-    if (!selectedRoutine || !selectedUserId) return;
+    if (!selectedRoutine || selectedUserIds.length === 0 || !assignDate) {
+      Alert.alert('Faltan datos');
+      return;
+    }
+
+
+    // 🔥 NORMALIZAR FECHA
+    const formattedDate = new Date(assignDate).toISOString().split("T")[0];
+
+    console.log("FECHA ENVIADA:", formattedDate);
+
     setAssigning(true);
+
     try {
-      await assignRoutine(selectedRoutine.id, selectedUserId, assignNote || undefined);
+      await assignRoutine(
+        selectedRoutine.id,
+        selectedUserIds,
+        formattedDate, // 👈 usamos la corregida
+        assignNote || undefined
+      );
+
       setShowAssignModal(false);
-      Alert.alert('✓ Asignada', `Rutina asignada correctamente.`);
+      Alert.alert('✓ Asignadas correctamente');
+
     } catch (err: any) {
       Alert.alert('Error', err.message);
     } finally {
       setAssigning(false);
+    }
+  };
+  // VER ASIGNACIONES
+  const openAssignmentsModal = async (routine: Routine) => {
+    setSelectedRoutine(routine);
+    setShowAssignmentsModal(true);
+    setLoadingAssignments(true);
+
+    try {
+      const data = await getAssignmentsByRoutine(routine.id);
+      setRoutineAssignments(data);
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
+    } finally {
+      setLoadingAssignments(false);
+    }
+  };
+
+  // ELIMINAR ASIGNACIÓN
+  const handleDeleteAssignment = async (id: number) => {
+    try {
+      await deleteAssignment(id);
+      setRoutineAssignments(prev => prev.filter(a => a.id !== id));
+      Alert.alert('✓ Eliminada');
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
     }
   };
 
@@ -353,7 +456,7 @@ export default function RoutinesScreen() {
             const alreadyAdded = selectedBlock?.exercises.some(e => e.exerciseId === item.id) ?? false;
             return (
               <TouchableOpacity
-                style={[s.libItem,{borderBottomColor:C.border,backgroundColor:C.bg,opacity:selectedBlock && !alreadyAdded ? 1 : 0.4}]}
+                style={[s.libItem,{borderBottomColor:C.border,backgroundColor:C.bg,opacity: !selectedBlock ? 0.4 : 1}]}
                 onPress={() => addFromLibrary(item)}
                 activeOpacity={0.7}
               >
@@ -487,30 +590,47 @@ export default function RoutinesScreen() {
               </Text>
             ) : (
               <ScrollView style={{maxHeight:260}}>
-                {users.map(user => (
-                  <TouchableOpacity key={user.id}
-                    style={[s.assignRow,{
-                      borderColor: selectedUserId===user.id ? Colors.primary : C.border,
-                      backgroundColor: selectedUserId===user.id ? Colors.primaryLight : 'transparent',
-                    }]}
-                    onPress={() => setSelectedUserId(user.id)}
-                  >
-                    <View style={[s.userAvatar,{backgroundColor:Colors.primaryLight}]}>
-                      <Text style={{color:Colors.primary,fontWeight:'700',fontSize:14}}>
-                        {user.name.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={{flex:1}}>
-                      <Text style={[s.assignName,{color:C.text}]}>{user.name}</Text>
-                      <Text style={[s.assignSub,{color:C.textSub}]}>{user.email}</Text>
-                    </View>
-                    {selectedUserId===user.id && (
-                      <View style={[s.checkCircle,{backgroundColor:Colors.primary}]}>
-                        <Text style={{color:'#fff',fontSize:12,fontWeight:'700'}}>✓</Text>
+                {users.map(user => {
+                  const isSelected = selectedUserIds.includes(user.id);
+
+                  return (
+                    <TouchableOpacity
+                      key={user.id}
+                      style={[s.assignRow,{
+                        borderColor: isSelected ? Colors.primary : C.border,
+                        backgroundColor: isSelected ? Colors.primaryLight : 'transparent',
+                      }]}
+                      onPress={() => {
+                        setSelectedUserIds(prev =>
+                          prev.includes(user.id)
+                            ? prev.filter(id => id !== user.id)
+                            : [...prev, user.id]
+                        );
+                      }}
+                    >
+                      <View style={[s.userAvatar,{backgroundColor:Colors.primaryLight}]}>
+                        <Text style={{color:Colors.primary,fontWeight:'700',fontSize:14}}>
+                          {user.name?.charAt(0).toUpperCase() || '?'}
+                        </Text>
                       </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
+
+                      <View style={{flex:1}}>
+                        <Text style={[s.assignName,{color:C.text}]}>
+                          {user.name || 'Sin nombre'}
+                        </Text>
+                        <Text style={[s.assignSub,{color:C.textSub}]}>
+                          {user.email || 'Sin email'}
+                        </Text>
+                      </View>
+
+                      {isSelected && (
+                        <View style={[s.checkCircle,{backgroundColor:Colors.primary}]}>
+                          <Text style={{color:'#fff',fontSize:12,fontWeight:'700'}}>✓</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
             )}
 
@@ -521,17 +641,76 @@ export default function RoutinesScreen() {
               value={assignNote} onChangeText={setAssignNote}
               multiline numberOfLines={2}
             />
+            <TextInput
+              style={[s.noteInput,{color:C.text,borderColor:C.border,backgroundColor:C.surface}]}
+              placeholder="Fecha (YYYY-MM-DD)"
+              placeholderTextColor={C.textSub}
+              value={assignDate}
+              onChangeText={setAssignDate}
+            />
 
             <TouchableOpacity
-              style={[s.btnPrimary,{opacity: selectedUserId && !assigning ? 1 : 0.5}]}
+              style={[s.btnPrimary,{opacity: selectedUserIds.length > 0 && assignDate && !assigning ? 1 : 0.5}]}
               onPress={confirmAssign}
-              disabled={!selectedUserId || assigning}
+              disabled={selectedUserIds.length === 0 || !/^\d{4}-\d{2}-\d{2}$/.test(assignDate) || assigning}
             >
               {assigning
                 ? <ActivityIndicator color="#fff"/>
                 : <Text style={s.btnPrimaryText}>Asignar rutina</Text>
               }
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={showAssignmentsModal} transparent animationType="slide">
+        <View style={s.modalOverlay}>
+          <View style={[s.modalCard,{backgroundColor:C.card,borderColor:C.border}]}>
+            
+            <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+              <Text style={[s.modalTitle,{color:C.text}]}>Asignaciones</Text>
+              <TouchableOpacity onPress={() => setShowAssignmentsModal(false)}>
+                <Text style={{color:C.textSub,fontSize:20}}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{color:C.textSub, marginBottom:10}}>
+              {selectedRoutine?.name}
+            </Text>
+
+            {loadingAssignments ? (
+              <ActivityIndicator color={Colors.primary}/>
+            ) : routineAssignments.length === 0 ? (
+              <Text style={{color:C.textSub}}>No hay asignaciones</Text>
+            ) : (
+              <ScrollView style={{maxHeight:300}}>
+                {routineAssignments.map(a => (
+                  <View key={a.id} style={{
+                    flexDirection:'row',
+                    justifyContent:'space-between',
+                    alignItems:'center',
+                    padding:10,
+                    borderBottomWidth:1,
+                    borderColor:C.border
+                  }}>
+                    <View>
+                      <Text style={{color:C.text}}>
+                        Usuario ID: {a.assigned_to_id}
+                      </Text>
+                      <Text style={{color:C.textSub, fontSize:12}}>
+                        {a.date}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      onPress={() => handleDeleteAssignment(a.id)}
+                    >
+                      <Text style={{color:C.error}}>Eliminar</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
           </View>
         </View>
       </Modal>
@@ -606,13 +785,18 @@ export default function RoutinesScreen() {
                     const colors = gc(ex.muscle_group);
                     return (
                       <View key={ex.id} style={[s.exPill,{backgroundColor:colors.bg,borderColor:colors.bg}]}>
-                        <Text style={[s.exPillText,{color:colors.text}]} numberOfLines={1}>{ex.name}</Text>
+                        <Text style={[s.exPillText,{color:colors.text}]} numberOfLines={1}>
+                          {ex.name}
+                        </Text>
                       </View>
                     );
                   })}
+
                   {(routine.exercises ?? []).length > 4 && (
                     <View style={[s.exPill,{backgroundColor:Colors.primaryLight,borderColor:Colors.primaryLight}]}>
-                      <Text style={[s.exPillText,{color:Colors.primary}]}>+{routine.exercises.length-4} más</Text>
+                      <Text style={[s.exPillText,{color:Colors.primary}]}>
+                        +{routine.exercises.length - 4} más
+                      </Text>
                     </View>
                   )}
                 </View>
@@ -627,6 +811,21 @@ export default function RoutinesScreen() {
                 onPress={() => openAssignModal(routine)}
               >
                 <Text style={[s.footerBtnText,{color:C.text}]}>👤 Asignar</Text>
+              </TouchableOpacity>
+              {/* BOTÓN ASIGNACIONES */}
+              <TouchableOpacity
+                style={[s.footerBtn,{borderColor:C.border}]}
+                onPress={() => openAssignmentsModal(routine)}
+              >
+                <Text style={[s.footerBtnText,{color:C.text}]}>📅 Ver Asignaciones</Text>
+              </TouchableOpacity>
+
+              {/* BOTÓN EDIAR */}
+              <TouchableOpacity
+                style={[s.footerBtn,{borderColor:C.border}]}
+                onPress={() => openEditRoutine(routine)}
+              >
+                <Text style={[s.footerBtnText,{color:C.text}]}>✏️ Editar</Text>
               </TouchableOpacity>
 
               {/* BOTÓN ELIMINAR */}

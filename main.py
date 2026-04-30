@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from database import engine, Base
-from routes import users, exercises, routines, auth
+from routes import assignments, users, exercises, routines, auth
 from fastapi.middleware.cors import CORSMiddleware
-
+from routes import routines
 # Crea todas las tablas en la base de datos al arrancar
 Base.metadata.create_all(bind=engine)
 
@@ -34,6 +34,7 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(exercises.router)
 app.include_router(routines.router)
+app.include_router(assignments.router)
 
 
 @app.get("/", tags=["Home"])

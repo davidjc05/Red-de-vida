@@ -80,7 +80,6 @@ const ExerciseCard = ({ item, isAdmin, onView, onEdit, onDelete }: ExerciseCardP
             <Image source={{ uri: item.image_url }} style={s.cardThumb} />
           ) : (
             <View style={[s.cardThumbPlaceholder, { backgroundColor: gc.bg }]}>
-              <Text style={{ fontSize: 22 }}>💪</Text>
             </View>
           )}
 
@@ -104,13 +103,6 @@ const ExerciseCard = ({ item, isAdmin, onView, onEdit, onDelete }: ExerciseCardP
             )}
           </View>
 
-          <View style={s.cardMeta}>
-            {item.image_url && <Text style={s.metaIcon}>🖼</Text>}
-            {item.video_url && <Text style={s.metaIcon}>▶</Text>}
-            <Text style={[s.cardArrow, { color: isAdmin ? G.primary : G.border }]}>
-              {isAdmin ? '✎' : '›'}
-            </Text>
-          </View>
         </View>
       </TouchableOpacity>
 
@@ -126,7 +118,7 @@ const ExerciseCard = ({ item, isAdmin, onView, onEdit, onDelete }: ExerciseCardP
           }}
           onPress={() => onDelete(item)}
         >
-          <Text style={{ color: G.danger, fontSize: 18 }}>🗑</Text>
+          <Text style={{ color: G.danger, fontSize: 25 }}>🗑️</Text>
         </TouchableOpacity>
       )}
 
@@ -342,7 +334,10 @@ export default function ExercisesScreen() {
 
   useEffect(() => {
     load('Todos');
-    getRole().then(role => setIsAdmin(role === 'admin'));
+    getRole().then(role => {
+      console.log("ROLE RAW:", role);
+      setIsAdmin(role?.toLowerCase().trim() === 'admin');
+    });
   }, []);
 
   const handleFilterChange = (group: string) => { setFilter(group); load(group); };

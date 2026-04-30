@@ -1,142 +1,265 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy.orm import Session, joinedload
+from typing import List, Optional
+from datetime import date
+from pydantic import BaseModel
 
 from database import get_db
-from models import Routine, User, Exercise
-from schemas import RoutineCreate, RoutineOut
-from sqlalchemy import Date
-
+from models import Routine, User, RoutineExercise
+from schemas import RoutineCreate,RoutineUpdate
 from permissions import require_admin
 from auth.auth import get_current_user
 
-router = APIRouter(prefix="/routines", tags=["📅 Rutinas"])
+router = APIRouter(prefix="/routines", tags=["Rutinas"])
 
 
-from datetime import date
-from typing import Optional
+class AddExercisesBulk(BaseModel):
+    exercise_ids: List[int]
 
-@router.get("/me", response_model=List[RoutineOut])
+
+def serialize_routine(routine: Routine):
+    valid_relations = [
+        re for re in routine.routine_exercises
+        if re.exercise is not None
+    ]
+
+    return {
+        "id": routine.id,
+        "name": routine.name,
+        "description": routine.description,
+        "user_id": routine.user_id,
+        "date": routine.date,
+        "routine_exercises": [
+            {
+                "id": re.id,
+                "sets": re.sets,
+                "reps": re.reps,
+                "exercise": {
+                    "id": re.exercise.id,
+                    "name": re.exercise.name,
+                    "muscle_group": re.exercise.muscle_group,
+                    "description": re.exercise.description,
+                    "image_url": re.exercise.image_url,
+                    "video_url": re.exercise.video_url,
+                }
+            }
+            for re in valid_relations
+        ],
+        "exercises": [
+            {
+                "id": re.exercise.id,
+                "name": re.exercise.name,
+                "muscle_group": re.exercise.muscle_group,
+                "description": re.exercise.description,
+                "image_url": re.exercise.image_url,
+                "video_url": re.exercise.video_url,
+            }
+            for re in valid_relations
+        ]
+    }
+
+
+@router.get("/me")
 def get_my_routines(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     start: Optional[date] = None,
     end: Optional[date] = None,
 ):
-    query = db.query(Routine).filter(Routine.user_id == current_user.id)
+    query = (
+        db.query(Routine)
+        .options(
+            joinedload(Routine.routine_exercises)
+            .joinedload(RoutineExercise.exercise)
+        )
+        .filter(Routine.user_id == current_user.id)
+    )
 
     if start:
         query = query.filter(Routine.date >= start)
+
     if end:
         query = query.filter(Routine.date <= end)
 
-    return query.all()
+    routines = query.all()
+    return [serialize_routine(r) for r in routines]
 
 
-# 🔹 Admin: ver TODAS las rutinas
-@router.get("/", response_model=List[RoutineOut])
+@router.get("/")
 def list_routines(
     db: Session = Depends(get_db),
     _admin: User = Depends(require_admin),
 ):
-    return db.query(Routine).all()
+    routines = (
+        db.query(Routine)
+        .options(
+            joinedload(Routine.routine_exercises)
+            .joinedload(RoutineExercise.exercise)
+        )
+        .all()
+    )
+
+    return [serialize_routine(r) for r in routines]
 
 
-# 🔹 Obtener rutina por ID (solo admin)
-@router.get("/{routine_id}", response_model=RoutineOut)
-def get_routine(
-    routine_id: int,
-    db: Session = Depends(get_db),
-    _admin: User = Depends(require_admin),
-):
-    routine = db.query(Routine).filter(Routine.id == routine_id).first()
-    if not routine:
-        raise HTTPException(status_code=404, detail="Rutina no encontrada")
-    return routine
-
-
-# 🔹 Admin: crear rutina para un usuario
-@router.post("/", response_model=RoutineOut)
+@router.post("/")
 def create_routine(
     routine_in: RoutineCreate,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
-    # comprobar que el usuario existe
-    user = db.query(User).filter(User.id == routine_in.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no existe")
-
     db_routine = Routine(
         name=routine_in.name,
         description=routine_in.description,
-        user_id=routine_in.user_id,
+        user_id=current_user.id,
         date=routine_in.date
     )
 
     db.add(db_routine)
     db.commit()
     db.refresh(db_routine)
-    return db_routine
+
+    return serialize_routine(db_routine)
 
 
-# 🔹 Admin: añadir ejercicio a rutina
-@router.post("/{routine_id}/exercises/{exercise_id}", response_model=RoutineOut)
-def add_exercise_to_routine(
+@router.post("/{routine_id}/exercises/bulk")
+def add_exercises_bulk(
     routine_id: int,
-    exercise_id: int,
+    data: AddExercisesBulk,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
     routine = db.query(Routine).filter(Routine.id == routine_id).first()
+
     if not routine:
         raise HTTPException(status_code=404, detail="Rutina no encontrada")
 
-    exercise = db.query(Exercise).filter(Exercise.id == exercise_id).first()
-    if not exercise:
-        raise HTTPException(status_code=404, detail="Ejercicio no encontrado")
+    db.expire_all()
 
-    if exercise in routine.exercises:
-        raise HTTPException(status_code=400, detail="El ejercicio ya está en esta rutina")
+    existing_ids = {
+        re.exercise_id
+        for re in db.query(RoutineExercise)
+        .filter(RoutineExercise.routine_id == routine_id)
+        .all()
+    }
 
-    routine.exercises.append(exercise)
+    new_relations = []
+
+    for exercise_id in data.exercise_ids:
+        if exercise_id not in existing_ids:
+            new_relations.append(
+                RoutineExercise(
+                    routine_id=routine_id,
+                    exercise_id=exercise_id,
+                    sets=3,
+                    reps=10
+                )
+            )
+
+    db.add_all(new_relations)
     db.commit()
-    db.refresh(routine)
-    return routine
+
+    routine = (
+        db.query(Routine)
+        .options(
+            joinedload(Routine.routine_exercises)
+            .joinedload(RoutineExercise.exercise)
+        )
+        .filter(Routine.id == routine_id)
+        .first()
+    )
+
+    return serialize_routine(routine)
 
 
-# 🔹 Admin: eliminar ejercicio de rutina
-@router.delete("/{routine_id}/exercises/{exercise_id}", response_model=RoutineOut)
-def remove_exercise_from_routine(
+@router.get("/{routine_id}")
+def get_routine(
     routine_id: int,
-    exercise_id: int,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
-    routine = db.query(Routine).filter(Routine.id == routine_id).first()
+    routine = (
+        db.query(Routine)
+        .options(
+            joinedload(Routine.routine_exercises)
+            .joinedload(RoutineExercise.exercise)
+        )
+        .filter(Routine.id == routine_id)
+        .first()
+    )
+
     if not routine:
         raise HTTPException(status_code=404, detail="Rutina no encontrada")
 
-    exercise = db.query(Exercise).filter(Exercise.id == exercise_id).first()
-    if not exercise or exercise not in routine.exercises:
-        raise HTTPException(status_code=404, detail="Ejercicio no encontrado en esta rutina")
-
-    routine.exercises.remove(exercise)
-    db.commit()
-    db.refresh(routine)
-    return routine
+    return serialize_routine(routine)
 
 
-# 🔹 Admin: eliminar rutina
 @router.delete("/{routine_id}", status_code=204)
 def delete_routine(
     routine_id: int,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
     routine = db.query(Routine).filter(Routine.id == routine_id).first()
+
     if not routine:
         raise HTTPException(status_code=404, detail="Rutina no encontrada")
 
+    db.query(RoutineExercise).filter(
+        RoutineExercise.routine_id == routine_id
+    ).delete()
+
+    from models import Assignment
+    db.query(Assignment).filter(
+        Assignment.routine_id == routine_id
+    ).delete()
+
     db.delete(routine)
+
     db.commit()
+@router.put("/{routine_id}")
+def update_routine(
+    routine_id: int,
+    routine_in: RoutineUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    routine = db.query(Routine).filter(Routine.id == routine_id).first()
+
+    if not routine:
+        raise HTTPException(status_code=404, detail="Rutina no encontrada")
+
+    # seguridad
+    if current_user.role != "admin" and routine.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    routine.name = routine_in.name
+    routine.description = routine_in.description
+
+    db.commit()
+    db.refresh(routine)
+
+    return serialize_routine(routine)
+
+@router.delete("/{routine_id}/exercises")
+def clear_routine_exercises(
+    routine_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    routine = db.query(Routine).filter(Routine.id == routine_id).first()
+
+    if not routine:
+        raise HTTPException(status_code=404, detail="Rutina no encontrada")
+
+    # seguridad
+    if current_user.role != "admin" and routine.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    db.query(RoutineExercise).filter(
+        RoutineExercise.routine_id == routine_id
+    ).delete()
+
+    db.commit()
+
+    return {"ok": True}

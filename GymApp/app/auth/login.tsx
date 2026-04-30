@@ -24,17 +24,16 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      const data = await login(email.trim(), password);
+      await login(email.trim(), password);
 
+      const role = await AsyncStorage.getItem('role');
 
-      const me = await getMe();
+      console.log("ROLE:", role);
 
-      console.log("ROLE GUARDADO:", me.role);
-
-      if (me.role === 'admin') {
-        router.replace('/(tabs)/routines');
+      if (role === 'admin') {
+        router.replace('/(tabs)/calendar');
       } else {
-        router.replace('/(tabs)/exercises');
+        router.replace('/(tabs)/calendar');
       }
 
     } catch (e: any) {

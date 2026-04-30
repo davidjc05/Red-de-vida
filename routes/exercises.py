@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
+from schemas import ExerciseUpdate
+from auth.auth import get_current_admin
+
 
 import sys
 sys.path.append("..")
@@ -41,10 +44,40 @@ def get_exercise(exercise_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{exercise_id}", status_code=204)
-def delete_exercise(exercise_id: int, db: Session = Depends(get_db)):
-    """Elimina un ejercicio por su ID."""
+def delete_exercise(
+    exercise_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_admin)
+):
     exercise = db.query(Exercise).filter(Exercise.id == exercise_id).first()
+
     if not exercise:
         raise HTTPException(status_code=404, detail="Ejercicio no encontrado")
+
     db.delete(exercise)
     db.commit()
+
+@router.patch("/{exercise_id}", response_model=ExerciseOut)
+def update_exercise(exercise_id: int, data: ExerciseUpdate, db: Session = Depends(get_db)):
+    """Actualiza un ejercicio"""
+    exercise = db.query(Exercise).filter(Exercise.id == exercise_id).first()
+
+    if not exercise:
+        raise HTTPException(status_code=404, detail="Ejercicio no encontrado")
+
+    # Actualizar solo los campos enviados
+    if data.name is not None:
+        exercise.name = data.name
+    if data.muscle_group is not None:
+        exercise.muscle_group = data.muscle_group
+    if data.description is not None:
+        exercise.description = data.description
+    if data.image_url is not None:
+        exercise.image_url = data.image_url
+    if data.video_url is not None:
+        exercise.video_url = data.video_url
+
+    db.commit()
+    db.refresh(exercise)
+
+    return exercise

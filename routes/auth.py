@@ -25,11 +25,13 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
 
     is_first_user = db.query(User).count() == 0
 
+    role = "admin" if is_first_user else "client"
+
     user = User(
         name=user_in.name,
         email=user_in.email,
         hashed_password=hash_password(user_in.password),
-        role="admin" if is_first_user else "user",
+        role=role,
     )
 
     db.add(user)

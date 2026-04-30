@@ -1,16 +1,12 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Table, Date
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date
 from sqlalchemy.orm import relationship
 from database import Base
+from sqlalchemy import Date
 
 
-# Tabla intermedia rutina ↔ ejercicio
-routine_exercises = Table(
-    "routine_exercises",
-    Base.metadata,
-    Column("routine_id", Integer, ForeignKey("routines.id"), primary_key=True),
-    Column("exercise_id", Integer, ForeignKey("exercises.id"), primary_key=True),
-)
-
+# ─────────────────────────────────────────
+# USER
+# ─────────────────────────────────────────
 
 class User(Base):
     __tablename__ = "users"
@@ -28,6 +24,10 @@ class User(Base):
     assignments_sent     = relationship("Assignment", foreign_keys="Assignment.assigned_by_id", back_populates="assigned_by")
 
 
+# ─────────────────────────────────────────
+# EXERCISE
+# ─────────────────────────────────────────
+
 class Exercise(Base):
     __tablename__ = "exercises"
 
@@ -35,15 +35,16 @@ class Exercise(Base):
     name         = Column(String, nullable=False)
     muscle_group = Column(String, nullable=False)
     description  = Column(String, nullable=True)
-    
+
     image_url    = Column(String, nullable=True)
     video_url    = Column(String, nullable=True)
 
-    sets         = Column(Integer, default=3, nullable=True)
-    reps         = Column(Integer, default=10, nullable=True)
+    routine_exercises = relationship("RoutineExercise", back_populates="exercise")
 
-    routines = relationship("Routine", secondary=routine_exercises, back_populates="exercises")
 
+# ─────────────────────────────────────────
+# ROUTINE
+# ─────────────────────────────────────────
 
 class Routine(Base):
     __tablename__ = "routines"
@@ -54,10 +55,39 @@ class Routine(Base):
     user_id     = Column(Integer, ForeignKey("users.id"), nullable=False)
     date        = Column(Date, nullable=False)
 
-    user        = relationship("User", back_populates="routines")
-    exercises   = relationship("Exercise", secondary=routine_exercises, back_populates="routines")
+    user = relationship("User", back_populates="routines")
+
+    routine_exercises = relationship(
+        "RoutineExercise",
+        back_populates="routine",
+        cascade="all, delete"
+    )
+
     assignments = relationship("Assignment", back_populates="routine")
 
+
+# ─────────────────────────────────────────
+# ROUTINE EXERCISE (CLAVE)
+# ─────────────────────────────────────────
+
+class RoutineExercise(Base):
+    __tablename__ = "routine_exercises"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    routine_id  = Column(Integer, ForeignKey("routines.id", ondelete="CASCADE"))
+    exercise_id = Column(Integer, ForeignKey("exercises.id", ondelete="CASCADE"))
+
+    sets = Column(Integer, default=3)
+    reps = Column(Integer, default=10)
+
+    routine  = relationship("Routine", back_populates="routine_exercises")
+    exercise = relationship("Exercise", back_populates="routine_exercises")
+
+
+# ─────────────────────────────────────────
+# ASSIGNMENT
+# ─────────────────────────────────────────
 
 class Assignment(Base):
     __tablename__ = "assignments"
@@ -67,7 +97,19 @@ class Assignment(Base):
     assigned_to_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     assigned_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     note           = Column(String, nullable=True)
+    date           = Column(Date, nullable=False)
 
-    routine     = relationship("Routine", back_populates="assignments")
-    assigned_to = relationship("User", foreign_keys=[assigned_to_id], back_populates="assignments_received")
-    assigned_by = relationship("User", foreign_keys=[assigned_by_id], back_populates="assignments_sent")
+    # 🔥 ESTO ES LO QUE TE FALTA
+    routine = relationship("Routine", back_populates="assignments")
+
+    assigned_to = relationship(
+        "User",
+        foreign_keys=[assigned_to_id],
+        back_populates="assignments_received"
+    )
+
+    assigned_by = relationship(
+        "User",
+        foreign_keys=[assigned_by_id],
+        back_populates="assignments_sent"
+    )

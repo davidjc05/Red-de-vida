@@ -19,7 +19,7 @@ export async function getToken() {
 export async function deleteToken() {
   await storage.removeItem('token');
   await storage.removeItem('user_id');
-  await storage.removeItem('role'); // 👈 importante también borrar role
+  await storage.removeItem('role'); // 
 }
 
 async function saveUserId(id: number) {
@@ -70,7 +70,7 @@ export async function login(email: string, password: string) {
 
   if (meRes.ok) {
     await saveUserId(me.id);
-    await storage.setItem('role', me.role); // 👈 CLAVE
+    await storage.setItem('role', me.role); 
   }
 
   return data;
@@ -190,18 +190,46 @@ export async function removeExerciseFromRoutine(routineId: number, exerciseId: n
   if (!res.ok) throw new Error(data.detail || 'Error al quitar ejercicio');
   return data;
 }
+export async function updateRoutine(routineId: number, name: string) {
+  const res = await authFetch(`/routines/${routineId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      name,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || 'Error al actualizar rutina');
+  return data;
+}
+
+export async function clearRoutineExercises(routineId: number) {
+  const res = await authFetch(`/routines/${routineId}/exercises`, {
+    method: 'DELETE',
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.detail || 'Error limpiando ejercicios');
+  }
+
+  return data;
+}
 
 // ── Asignaciones ───────────────────────────────────────────────────────────────
 export async function assignRoutine(
   routineId: number,
-  assignedToId: number,
+  userIds: number[],
+  date: string,
   note?: string
 ) {
   const res = await authFetch('/assignments/', {
     method: 'POST',
     body: JSON.stringify({
       routine_id: routineId,
-      assigned_to_id: assignedToId,
+      assigned_to_ids: userIds,
+      date,
       note,
     }),
   });
@@ -215,5 +243,46 @@ export async function getMyAssignments() {
   const res = await authFetch('/assignments/mine');
   const data = await res.json();
   if (!res.ok) throw new Error(data.detail || 'Error al cargar asignaciones');
+  return data;
+}
+export async function addExercisesBulk(
+  routineId: number,
+  exerciseIds: number[]
+) {
+  const res = await authFetch(`/routines/${routineId}/exercises/bulk`, {
+    method: 'POST',
+    body: JSON.stringify({
+      exercise_ids: exerciseIds,
+    }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.detail || 'Error al añadir ejercicios a la rutina');
+  }
+
+  return data;
+}
+// ── NUEVO: Asignaciones por rutina ─────────────────────────────
+export async function getAssignmentsByRoutine(routineId: number) {
+  const res = await authFetch(`/assignments/routine/${routineId}`);
+  const data = await res.json();
+
+  if (!res.ok) throw new Error(data.detail || 'Error al cargar asignaciones');
+
+  return data;
+}
+
+// ── NUEVO: Borrar asignación ───────────────────────────────────
+export async function deleteAssignment(assignmentId: number) {
+  const res = await authFetch(`/assignments/${assignmentId}`, {
+    method: 'DELETE',
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) throw new Error(data.detail || 'Error al eliminar asignación');
+
   return data;
 }
