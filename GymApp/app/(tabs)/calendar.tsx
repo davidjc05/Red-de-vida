@@ -116,9 +116,16 @@ export default function CalendarScreen() {
       setLoading(true);
       try {
         const data = await getMyAssignments();
+        console.log("ASSIGNMENTS RAW:", data);
+
+        if (!data || !Array.isArray(data)) {
+          console.log("❌ NO HAY DATOS O ERROR DE AUTH");
+          setAssignments([]);
+          return;
+        }
         const adapted = data.map((a: any) => ({
           id: String(a.id),
-          due_date: a.date,
+          due_date: a.date?.split('T')[0],
           start_time: '18:06',
           end_time: '19:06',
           workout: {

@@ -1,7 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date
 from sqlalchemy.orm import relationship
 from database import Base
-from sqlalchemy import Date
 
 
 # ─────────────────────────────────────────
@@ -40,6 +39,7 @@ class Exercise(Base):
     video_url    = Column(String, nullable=True)
 
     routine_exercises = relationship("RoutineExercise", back_populates="exercise")
+    block_exercises   = relationship("BlockExercise", back_populates="exercise")
 
 
 # ─────────────────────────────────────────
@@ -57,8 +57,16 @@ class Routine(Base):
 
     user = relationship("User", back_populates="routines")
 
+    # 🔥 RELACIÓN ANTIGUA (la mantenemos de momento)
     routine_exercises = relationship(
         "RoutineExercise",
+        back_populates="routine",
+        cascade="all, delete"
+    )
+
+    # 🔥 NUEVO SISTEMA DE BLOQUES
+    blocks = relationship(
+        "Block",
         back_populates="routine",
         cascade="all, delete"
     )
@@ -67,7 +75,45 @@ class Routine(Base):
 
 
 # ─────────────────────────────────────────
-# ROUTINE EXERCISE (CLAVE)
+# BLOQUES (NUEVO)
+# ─────────────────────────────────────────
+
+class Block(Base):
+    __tablename__ = "blocks"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    routine_id = Column(Integer, ForeignKey("routines.id", ondelete="CASCADE"))
+    name       = Column(String, nullable=False)
+
+    routine = relationship("Routine", back_populates="blocks")
+
+    exercises = relationship(
+        "BlockExercise",
+        back_populates="block",
+        cascade="all, delete"
+    )
+
+
+# ─────────────────────────────────────────
+# BLOQUE → EJERCICIOS (NUEVO)
+# ─────────────────────────────────────────
+
+class BlockExercise(Base):
+    __tablename__ = "block_exercises"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    block_id    = Column(Integer, ForeignKey("blocks.id", ondelete="CASCADE"))
+    exercise_id = Column(Integer, ForeignKey("exercises.id", ondelete="CASCADE"))
+
+    sets = Column(Integer, default=3)
+    reps = Column(Integer, default=10)
+
+    block    = relationship("Block", back_populates="exercises")
+    exercise = relationship("Exercise", back_populates="block_exercises")
+
+
+# ─────────────────────────────────────────
+# ROUTINE EXERCISE (ANTIGUO - MANTENER TEMP)
 # ─────────────────────────────────────────
 
 class RoutineExercise(Base):
@@ -99,7 +145,6 @@ class Assignment(Base):
     note           = Column(String, nullable=True)
     date           = Column(Date, nullable=False)
 
-    # 🔥 ESTO ES LO QUE TE FALTA
     routine = relationship("Routine", back_populates="assignments")
 
     assigned_to = relationship(

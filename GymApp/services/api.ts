@@ -1,13 +1,8 @@
 import { storage } from './storage';
 
 export const API_URL = 'https://pajamas-operable-traitor.ngrok-free.dev';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export async function getRole(): Promise<string | null> {
-  return await storage.getItem('role');
-}
-
-// ── Token y usuario ────────────────────────────────────────────────────────────
+// ── Token ─────────────────────────────────────────────────────
 export async function saveToken(token: string) {
   await storage.setItem('token', token);
 }
@@ -19,7 +14,7 @@ export async function getToken() {
 export async function deleteToken() {
   await storage.removeItem('token');
   await storage.removeItem('user_id');
-  await storage.removeItem('role'); // 
+  await storage.removeItem('role');
 }
 
 async function saveUserId(id: number) {
@@ -31,15 +26,20 @@ export async function getUserId(): Promise<number | null> {
   return id ? Number(id) : null;
 }
 
-// ── Headers comunes ────────────────────────────────────────────────────────────
+export async function getRole(): Promise<string | null> {
+  return await storage.getItem('role');
+}
+
+// ── Headers ───────────────────────────────────────────────────
 const COMMON_HEADERS = {
   'Content-Type': 'application/json',
   'ngrok-skip-browser-warning': 'true',
 };
 
-// ── Helper fetch autenticado ───────────────────────────────────────────────────
+// ── Fetch con auth ─────────────────────────────────────────────
 async function authFetch(path: string, options: RequestInit = {}) {
   const token = await getToken();
+
   return fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
@@ -50,7 +50,7 @@ async function authFetch(path: string, options: RequestInit = {}) {
   });
 }
 
-// ── Auth ───────────────────────────────────────────────────────────────────────
+// ── AUTH ──────────────────────────────────────────────────────
 export async function login(email: string, password: string) {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
@@ -66,11 +66,9 @@ export async function login(email: string, password: string) {
   const meRes = await authFetch('/auth/me');
   const me = await meRes.json();
 
-  console.log("ME RESPONSE:", me);
-
   if (meRes.ok) {
     await saveUserId(me.id);
-    await storage.setItem('role', me.role); 
+    await storage.setItem('role', me.role);
   }
 
   return data;
@@ -79,7 +77,7 @@ export async function login(email: string, password: string) {
 export async function register(name: string, email: string, password: string) {
   const res = await fetch(`${API_URL}/auth/register`, {
     method: 'POST',
-    headers: { ...COMMON_HEADERS },
+    headers: COMMON_HEADERS,
     body: JSON.stringify({ name, email, password }),
   });
 
@@ -96,7 +94,7 @@ export async function getMe() {
   return data;
 }
 
-// ── Usuarios ───────────────────────────────────────────────────────────────────
+// ── USERS ─────────────────────────────────────────────────────
 export async function getUsers() {
   const res = await authFetch('/users/');
   const data = await res.json();
@@ -104,7 +102,7 @@ export async function getUsers() {
   return data;
 }
 
-// ── Ejercicios ─────────────────────────────────────────────────────────────────
+// ── EJERCICIOS ────────────────────────────────────────────────
 export async function getExercises(muscleGroup?: string) {
   const query = muscleGroup ? `?muscle_group=${encodeURIComponent(muscleGroup)}` : '';
   const res = await authFetch(`/exercises/${query}`);
@@ -113,24 +111,7 @@ export async function getExercises(muscleGroup?: string) {
   return data;
 }
 
-export async function createExercise(exerciseData: {
-  name: string;
-  muscle_group: string;
-  description?: string;
-  image_url?: string;
-  video_url?: string;
-}) {
-  const res = await authFetch('/exercises/', {
-    method: 'POST',
-    body: JSON.stringify(exerciseData),
-  });
-
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Error al crear ejercicio');
-  return data;
-}
-
-// ── Rutinas ────────────────────────────────────────────────────────────────────
+// ── RUTINAS ───────────────────────────────────────────────────
 export async function getRoutines() {
   const res = await authFetch('/routines/me');
   const data = await res.json();
@@ -171,53 +152,30 @@ export async function deleteRoutine(routineId: number) {
   return true;
 }
 
-export async function addExerciseToRoutine(routineId: number, exerciseId: number) {
-  const res = await authFetch(`/routines/${routineId}/exercises/${exerciseId}`, {
-    method: 'POST',
-  });
-
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Error al añadir ejercicio');
-  return data;
-}
-
-export async function removeExerciseFromRoutine(routineId: number, exerciseId: number) {
-  const res = await authFetch(`/routines/${routineId}/exercises/${exerciseId}`, {
-    method: 'DELETE',
-  });
-
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Error al quitar ejercicio');
-  return data;
-}
-export async function updateRoutine(routineId: number, name: string) {
-  const res = await authFetch(`/routines/${routineId}`, {
+// 🔥 NUEVO SISTEMA BUENO
+export async function updateRoutineFull(
+  routineId: number,
+  name: string,
+  blocks: any[]
+) {
+  const res = await authFetch(`/routines/${routineId}/full`, {
     method: 'PUT',
     body: JSON.stringify({
       name,
+      blocks,
     }),
-  });
-
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Error al actualizar rutina');
-  return data;
-}
-
-export async function clearRoutineExercises(routineId: number) {
-  const res = await authFetch(`/routines/${routineId}/exercises`, {
-    method: 'DELETE',
   });
 
   const data = await res.json();
 
   if (!res.ok) {
-    throw new Error(data.detail || 'Error limpiando ejercicios');
+    throw new Error(data.detail || 'Error al actualizar rutina completa');
   }
 
   return data;
 }
 
-// ── Asignaciones ───────────────────────────────────────────────────────────────
+// ── ASIGNACIONES ──────────────────────────────────────────────
 export async function assignRoutine(
   routineId: number,
   userIds: number[],
@@ -239,32 +197,6 @@ export async function assignRoutine(
   return data;
 }
 
-export async function getMyAssignments() {
-  const res = await authFetch('/assignments/mine');
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Error al cargar asignaciones');
-  return data;
-}
-export async function addExercisesBulk(
-  routineId: number,
-  exerciseIds: number[]
-) {
-  const res = await authFetch(`/routines/${routineId}/exercises/bulk`, {
-    method: 'POST',
-    body: JSON.stringify({
-      exercise_ids: exerciseIds,
-    }),
-  });
-
-  const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data.detail || 'Error al añadir ejercicios a la rutina');
-  }
-
-  return data;
-}
-// ── NUEVO: Asignaciones por rutina ─────────────────────────────
 export async function getAssignmentsByRoutine(routineId: number) {
   const res = await authFetch(`/assignments/routine/${routineId}`);
   const data = await res.json();
@@ -274,7 +206,6 @@ export async function getAssignmentsByRoutine(routineId: number) {
   return data;
 }
 
-// ── NUEVO: Borrar asignación ───────────────────────────────────
 export async function deleteAssignment(assignmentId: number) {
   const res = await authFetch(`/assignments/${assignmentId}`, {
     method: 'DELETE',
@@ -283,6 +214,17 @@ export async function deleteAssignment(assignmentId: number) {
   const data = await res.json();
 
   if (!res.ok) throw new Error(data.detail || 'Error al eliminar asignación');
+
+  return data;
+}
+export async function getMyAssignments() {
+  const res = await authFetch('/assignments/mine'); 
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.detail || 'Error al cargar asignaciones');
+  }
 
   return data;
 }

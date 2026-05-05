@@ -1,14 +1,33 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getRoutines } from '../services/api';
 
-export type Exercise = { id: number; name: string; muscle_group: string; description?: string };
+// ─── Tipos ─────────────────────────────────────────────────────────────
+
+export type Exercise = { 
+  id: number; 
+  name: string; 
+  muscle_group: string; 
+  description?: string; 
+};
+
 export type Routine = { 
   id: number; 
   name: string; 
   owner_id?: number;
   user_id?: number;
-  exercises: Exercise[]; 
+
+  blocks?: {
+    name: string;
+    exercises?: {
+      id: number;
+      sets?: number;
+      reps?: number;
+      exercise: Exercise;
+    }[];
+  }[];
 };
+
+// ─── Hook ─────────────────────────────────────────────────────────────
 
 export function useRoutines() {
   const [routines, setRoutines] = useState<Routine[]>([]);
@@ -18,11 +37,18 @@ export function useRoutines() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+
     try {
       const data = await getRoutines();
-      // Garantizar que exercises siempre es array
-      const normalized = data.map((r: any) => ({ ...r, exercises: r.exercises ?? [] }));
+
+      // 🔥 Normalizar estructura
+      const normalized = data.map((r: any) => ({
+        ...r,
+        blocks: r.blocks ?? []
+      }));
+
       setRoutines(normalized);
+
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -30,7 +56,9 @@ export function useRoutines() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { 
+    load(); 
+  }, [load]);
 
   return { routines, loading, error, reload: load };
 }
