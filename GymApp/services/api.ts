@@ -110,6 +110,33 @@ export async function getExercises(muscleGroup?: string) {
   if (!res.ok) throw new Error(data.detail || 'Error al cargar ejercicios');
   return data;
 }
+export async function createExercise(exercise: {
+  name: string;
+  muscle_group: string;
+  description?: string;
+  image_url?: string;
+  video_url?: string;
+}) {
+  const token = await getToken();
+
+  const res = await fetch(`${API_URL}/exercises`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(exercise),
+  });
+
+  const text = await res.text();
+
+  if (!res.ok) {
+    throw new Error(text || 'Error creando ejercicio');
+  }
+
+  return text ? JSON.parse(text) : null;
+}
 
 // ── RUTINAS ───────────────────────────────────────────────────
 export async function getRoutines() {
@@ -174,8 +201,8 @@ export async function updateRoutineFull(
 
   return data;
 }
-
 // ── ASIGNACIONES ──────────────────────────────────────────────
+
 export async function assignRoutine(
   routineId: number,
   userIds: number[],
@@ -193,38 +220,119 @@ export async function assignRoutine(
   });
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Error al asignar rutina');
-  return data;
-}
 
-export async function getAssignmentsByRoutine(routineId: number) {
-  const res = await authFetch(`/assignments/routine/${routineId}`);
-  const data = await res.json();
-
-  if (!res.ok) throw new Error(data.detail || 'Error al cargar asignaciones');
+  if (!res.ok) {
+    throw new Error(data.detail || 'Error al asignar rutina');
+  }
 
   return data;
 }
 
-export async function deleteAssignment(assignmentId: number) {
-  const res = await authFetch(`/assignments/${assignmentId}`, {
-    method: 'DELETE',
-  });
-
-  const data = await res.json();
-
-  if (!res.ok) throw new Error(data.detail || 'Error al eliminar asignación');
-
-  return data;
-}
-export async function getMyAssignments() {
-  const res = await authFetch('/assignments/mine'); 
+export async function getAssignmentsByRoutine(
+  routineId: number
+) {
+  const res = await authFetch(
+    `/assignments/routine/${routineId}`
+  );
 
   const data = await res.json();
 
   if (!res.ok) {
-    throw new Error(data.detail || 'Error al cargar asignaciones');
+    throw new Error(
+      data.detail || 'Error al cargar asignaciones'
+    );
   }
 
   return data;
+}
+
+export async function deleteAssignment(
+  assignmentId: number
+) {
+  const res = await authFetch(
+    `/assignments/${assignmentId}`,
+    {
+      method: 'DELETE',
+    }
+  );
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(
+      data.detail || 'Error al eliminar asignación'
+    );
+  }
+
+  return data;
+}
+
+export async function getMyAssignments() {
+  const res = await authFetch('/assignments/mine');
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(
+      data.detail || 'Error al cargar asignaciones'
+    );
+  }
+
+  return data;
+}
+
+
+// ✅ CONFIRMAR / RECHAZAR
+
+export async function confirmWorkout(
+  assignmentId: number,
+  status: 'confirmed' | 'declined'
+) {
+  const res = await authFetch(
+    `/assignments/${assignmentId}/confirm`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        status,
+      }),
+    }
+  );
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(
+      data.detail || 'Error confirmando entreno'
+    );
+  }
+
+  return data;
+}
+
+
+// ✅ GUARDAR KG / REPS
+
+export async function saveWorkoutLog(data: {
+  assignment_id: number;
+  exercise_id: number;
+  kg: number;
+  reps: number;
+}) {
+  const res = await authFetch(
+    '/assignments/log',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }
+  );
+
+  const json = await res.json();
+
+  if (!res.ok) {
+    throw new Error(
+      json.detail || 'Error guardando log'
+    );
+  }
+
+  return json;
 }

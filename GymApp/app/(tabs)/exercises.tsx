@@ -440,7 +440,7 @@ export default function ExercisesScreen() {
             </TouchableOpacity>
           )}
         </View>
-        <TextInput style={s.searchInput} placeholder="Buscar ejercicio..." placeholderTextColor={G.textHint}
+        <TextInput style={s.searchInput} placeholder="Buscar ejercicio..." placeholderTextColor="#A9C88A"
           value={search} onChangeText={setSearch} />
       </View>
 
@@ -560,77 +560,521 @@ export default function ExercisesScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: G.bgPage },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40, gap: 10 },
-  loadingText: { color: G.textSub, fontSize: 14, marginTop: 8 },
-  emptyTitle: { fontSize: 20, color: G.textMain, textAlign: 'center' },
-  emptySub: { fontSize: 13, color: G.textHint, textAlign: 'center', lineHeight: 18 },
-  adminHint: { backgroundColor: '#FEF9C3', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#FDE68A' },
-  adminHintText: { fontSize: 12, color: '#92400E', textAlign: 'center' },
-  header: { backgroundColor: G.white, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 0.5, borderBottomColor: G.border },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
-  headerEyebrow: { fontSize: 10, letterSpacing: 2, color: G.textHint, marginBottom: 4 },
-  headerTitle: { fontSize: 36, color: G.textMain, lineHeight: 38, letterSpacing: -0.5 },
-  headerSub: { fontSize: 13, color: G.textHint, marginTop: 3 },
-  addBtn: { backgroundColor: G.primary, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, marginTop: 4 },
-  addBtnText: { fontSize: 14, color: G.white, letterSpacing: 0.5 },
-  searchInput: { backgroundColor: G.bgPage, borderWidth: 0.5, borderColor: G.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: G.textMain },
-  chipsContainer: { backgroundColor: G.white, borderBottomWidth: 0.5, borderBottomColor: G.border, flexGrow: 0 },
-  chipsRow: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
-  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: G.border, backgroundColor: G.bgPage },
-  chipActive: { backgroundColor: G.primary, borderColor: G.primary },
-  chipText: { fontSize: 12, color: G.textHint },
-  chipTextActive: { color: G.white },
-  list: { padding: 16, gap: 10, paddingBottom: 40 },
-  card: { backgroundColor: G.white, borderRadius: 14, borderWidth: 0.5, borderColor: G.border, flexDirection: 'row', overflow: 'hidden' },
-  cardStripe: { width: 4 },
-  cardBody: { flex: 1, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },
-  cardThumb: { width: 56, height: 56, borderRadius: 10 },
-  cardThumbPlaceholder: { width: 56, height: 56, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  cardInfo: { flex: 1, gap: 4 },
-  cardName: { fontSize: 15, color: G.textMain },
-  cardDesc: { fontSize: 12, color: G.textHint, lineHeight: 16 },
-  cardDescEmpty: { fontSize: 12, color: G.border, fontStyle: 'italic' },
-  badge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7 },
-  badgeText: { fontSize: 10 },
-  cardMeta: { alignItems: 'center', gap: 4 },
-  metaIcon: { fontSize: 12 },
-  cardArrow: { fontSize: 22, color: G.border, lineHeight: 24 },
-  detailSafeArea: { flex: 1, backgroundColor: G.white },
-  detailTopBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: G.border, backgroundColor: G.white },
-  detailImage: { width: '100%', aspectRatio: 4/3, borderRadius: 14, marginTop: 20 },
-  detailImagePlaceholder: { width: '100%', height: 200, justifyContent: 'center', alignItems: 'center' },
-  detailContent: { padding: 24, paddingBottom: 48 },
-  detailNameAccent: { width: 40, height: 4, borderRadius: 2, marginBottom: 12 },
-  detailName: { fontSize: 32, color: G.textMain, letterSpacing: -0.5, lineHeight: 34, marginBottom: 20 },
-  detailCloseBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: G.bgPage, borderWidth: 0.5, borderColor: G.border, justifyContent: 'center', alignItems: 'center' },
-  detailCloseTxt: { fontSize: 14, color: G.textHint },
-  detailDescBlock: { marginBottom: 8 },
-  detailSectionLabel: { fontSize: 10, letterSpacing: 1.5, color: G.textHint, marginBottom: 10 },
-  detailDescription: { fontSize: 15, color: G.textSub, lineHeight: 26 },
-  detailNoDesc: { backgroundColor: G.bgPage, borderRadius: 10, padding: 14, borderWidth: 0.5, borderColor: G.border, marginBottom: 8 },
-  detailNoDescTxt: { fontSize: 13, color: G.textHint, textAlign: 'center' },
-  videoButton: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: G.primary, borderRadius: 14, padding: 16, marginTop: 24 },
-  videoButtonIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: G.primaryDark, justifyContent: 'center', alignItems: 'center' },
-  videoButtonText: { fontSize: 15, color: G.white, flex: 1 },
-  detailCloseFull: { marginTop: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 0.5, borderColor: G.border, alignItems: 'center' },
-  detailCloseFullTxt: { fontSize: 14, color: G.textSub },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: G.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingBottom: 44, maxHeight: '88%', overflow: 'hidden' },
-  modalAccentBar: { height: 4, backgroundColor: G.primary, marginBottom: 24 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 22, color: G.textMain },
-  inputLabel: { fontSize: 11, color: G.textHint, letterSpacing: 0.8, marginBottom: 8, marginTop: 2 },
-  input: { backgroundColor: G.bgPage, borderWidth: 0.5, borderColor: G.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: G.textMain, marginBottom: 16 },
-  inputMultiline: { height: 88, textAlignVertical: 'top' },
-  modalChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
-  modalChip: { paddingHorizontal: 13, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: G.border, backgroundColor: G.bgPage },
-  modalChipActive: { backgroundColor: G.primary, borderColor: G.primary },
-  modalChipText: { fontSize: 12, color: G.textSub },
-  modalChipTextActive: { color: G.white },
-  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 8, marginBottom: 8 },
-  btnCancel: { paddingHorizontal: 16, paddingVertical: 13, borderRadius: 10, borderWidth: 0.5, borderColor: G.border },
-  btnCancelText: { fontSize: 14, color: G.textMain },
-  btnSave: { flex: 1, backgroundColor: G.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
-  btnSaveText: { color: G.white, fontSize: 14, letterSpacing: 0.5 },
+  container: {
+    flex: 1,
+    backgroundColor: G.bgPage,
+  },
+
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+    gap: 10,
+  },
+
+  loadingText: {
+    color: G.textSub,
+    fontSize: 14,
+    marginTop: 8,
+  },
+
+  emptyTitle: {
+    fontSize: 20,
+    color: G.textMain,
+    textAlign: 'center',
+  },
+
+  emptySub: {
+    fontSize: 13,
+    color: G.textHint,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+
+  adminHint: {
+    backgroundColor: '#FEF9C3',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#FDE68A',
+  },
+
+  adminHintText: {
+    fontSize: 12,
+    color: '#92400E',
+    textAlign: 'center',
+  },
+
+  header: {
+    backgroundColor: G.primary,
+
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 18,
+
+    zIndex: 1,
+  },
+
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+
+  headerEyebrow: {
+    fontSize: 10,
+    letterSpacing: 2,
+    color: '#97C459',
+    marginBottom: 4,
+  },
+
+  headerTitle: {
+    fontSize: 36,
+    color: G.white,
+    lineHeight: 38,
+    letterSpacing: -0.5,
+  },
+
+  headerSub: {
+    fontSize: 13,
+    color: '#CFE7AF',
+    marginTop: 3,
+  },
+
+  addBtn: {
+    backgroundColor: G.primaryDark,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+
+  addBtnText: {
+    fontSize: 14,
+    color: G.white,
+    letterSpacing: 0.5,
+  },
+
+  searchInput: {
+    backgroundColor: G.primaryDark,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: G.white,
+  },
+
+  chipsContainer: {
+    backgroundColor: 'transparent',
+    flexGrow: 0,
+    marginTop: 12,
+    minHeight: 60,
+    zIndex: 20,
+    elevation: 20,
+    overflow: 'visible',
+  },
+
+  chipsRow: {
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 10,
+    gap: 10,
+    alignItems: 'center',
+  },
+
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: G.border,
+    backgroundColor: G.bgPage,
+  },
+
+  chipActive: {
+    backgroundColor: G.primary,
+    borderColor: G.primary,
+  },
+
+  chipText: {
+    fontSize: 12,
+    color: G.textHint,
+  },
+
+  chipTextActive: {
+    color: G.white,
+  },
+
+  list: {
+    padding: 16,
+    gap: 16,
+    paddingBottom: 120,
+  },
+
+  card: {
+    backgroundColor: G.white,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+
+    elevation: 2,
+
+    minHeight: 110,
+  },
+
+  cardStripe: {
+    width: 6,
+    borderTopLeftRadius: 22,
+    borderBottomLeftRadius: 22,
+  },
+
+  cardBody: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 18,
+    gap: 16,
+  },
+
+  cardThumb: {
+    width: 70,
+    height: 70,
+    borderRadius: 18,
+  },
+
+  cardThumbPlaceholder: {
+    width: 70,
+    height: 70,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  cardInfo: {
+    flex: 1,
+    gap: 6,
+  },
+
+  cardName: {
+    fontSize: 24,
+    color: '#111827',
+    fontFamily: FC,
+    lineHeight: 26,
+  },
+
+  cardDesc: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+    marginTop: 4,
+  },
+
+  cardDescEmpty: {
+    fontSize: 12,
+    color: G.border,
+    fontStyle: 'italic',
+  },
+
+  badge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginTop: 6,
+  },
+
+  badgeText: {
+    fontSize: 12,
+    fontFamily: FBB,
+  },
+
+  cardMeta: {
+    alignItems: 'center',
+    gap: 4,
+  },
+
+  metaIcon: {
+    fontSize: 12,
+  },
+
+  cardArrow: {
+    fontSize: 22,
+    color: G.border,
+    lineHeight: 24,
+  },
+
+  detailSafeArea: {
+    flex: 1,
+    backgroundColor: G.white,
+  },
+
+  detailTopBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: G.border,
+    backgroundColor: G.white,
+  },
+
+  detailImage: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    borderRadius: 14,
+    marginTop: 20,
+  },
+
+  detailImagePlaceholder: {
+    width: '100%',
+    height: 200,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  detailContent: {
+    padding: 24,
+    paddingBottom: 48,
+  },
+
+  detailNameAccent: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 12,
+  },
+
+  detailName: {
+    fontSize: 32,
+    color: G.textMain,
+    letterSpacing: -0.5,
+    lineHeight: 34,
+    marginBottom: 20,
+  },
+
+  detailCloseBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: G.bgPage,
+    borderWidth: 0.5,
+    borderColor: G.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  detailCloseTxt: {
+    fontSize: 14,
+    color: G.textHint,
+  },
+
+  detailDescBlock: {
+    marginBottom: 8,
+  },
+
+  detailSectionLabel: {
+    fontSize: 10,
+    letterSpacing: 1.5,
+    color: G.textHint,
+    marginBottom: 10,
+  },
+
+  detailDescription: {
+    fontSize: 15,
+    color: G.textSub,
+    lineHeight: 26,
+  },
+
+  detailNoDesc: {
+    backgroundColor: G.bgPage,
+    borderRadius: 10,
+    padding: 14,
+    borderWidth: 0.5,
+    borderColor: G.border,
+    marginBottom: 8,
+  },
+
+  detailNoDescTxt: {
+    fontSize: 13,
+    color: G.textHint,
+    textAlign: 'center',
+  },
+
+  videoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: G.primary,
+    borderRadius: 14,
+    padding: 16,
+    marginTop: 24,
+  },
+
+  videoButtonIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: G.primaryDark,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  videoButtonText: {
+    fontSize: 15,
+    color: G.white,
+    flex: 1,
+  },
+
+  detailCloseFull: {
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: G.border,
+    alignItems: 'center',
+  },
+
+  detailCloseFullTxt: {
+    fontSize: 14,
+    color: G.textSub,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+
+  modalCard: {
+    backgroundColor: G.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingBottom: 44,
+    maxHeight: '88%',
+    overflow: 'hidden',
+  },
+
+  modalAccentBar: {
+    height: 4,
+    backgroundColor: G.primary,
+    marginBottom: 24,
+  },
+
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+
+  modalTitle: {
+    fontSize: 22,
+    color: G.textMain,
+  },
+
+  inputLabel: {
+    fontSize: 11,
+    color: G.textHint,
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    marginTop: 2,
+  },
+
+  input: {
+    backgroundColor: G.bgPage,
+    borderWidth: 0.5,
+    borderColor: G.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: G.textMain,
+    marginBottom: 16,
+  },
+
+  inputMultiline: {
+    height: 88,
+    textAlignVertical: 'top',
+  },
+
+  modalChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 18,
+  },
+
+  modalChip: {
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: G.border,
+    backgroundColor: G.bgPage,
+  },
+
+  modalChipActive: {
+    backgroundColor: G.primary,
+    borderColor: G.primary,
+  },
+
+  modalChipText: {
+    fontSize: 12,
+    color: G.textSub,
+  },
+
+  modalChipTextActive: {
+    color: G.white,
+  },
+
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+
+  btnCancel: {
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderRadius: 10,
+    borderWidth: 0.5,
+    borderColor: G.border,
+  },
+
+  btnCancelText: {
+    fontSize: 14,
+    color: G.textMain,
+  },
+
+  btnSave: {
+    flex: 1,
+    backgroundColor: G.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  btnSaveText: {
+    color: G.white,
+    fontSize: 14,
+    letterSpacing: 0.5,
+  },
 });

@@ -290,9 +290,21 @@ def delete_routine(
     current_user: User = Depends(get_current_user),
 ):
     routine = db.query(Routine).filter(Routine.id == routine_id).first()
-
     if not routine:
         raise HTTPException(status_code=404, detail="Rutina no encontrada")
+
+    if current_user.role != "admin" and routine.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    # Borrar asignaciones primero
+    from models import Assignment  # ajusta el import si es diferente
+    db.query(Assignment).filter(Assignment.routine_id == routine_id).delete(synchronize_session=False)
+
+    # Borrar bloques y sus ejercicios
+    blocks = db.query(Block).filter(Block.routine_id == routine_id).all()
+    for b in blocks:
+        db.query(BlockExercise).filter(BlockExercise.block_id == b.id).delete(synchronize_session=False)
+    db.query(Block).filter(Block.routine_id == routine_id).delete(synchronize_session=False)
 
     db.delete(routine)
     db.commit()

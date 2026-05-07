@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date, DateTime
 from sqlalchemy.orm import relationship
 from database import Base
+from datetime import datetime
 
 
 # ─────────────────────────────────────────
@@ -144,6 +145,9 @@ class Assignment(Base):
     assigned_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     note           = Column(String, nullable=True)
     date           = Column(Date, nullable=False)
+    status = Column(String, default="pending")
+    confirmed_at = Column(DateTime, nullable=True)
+    declined_at = Column(DateTime, nullable=True)
 
     routine = relationship("Routine", back_populates="assignments")
 
@@ -158,3 +162,18 @@ class Assignment(Base):
         foreign_keys=[assigned_by_id],
         back_populates="assignments_sent"
     )
+    
+class WorkoutLog(Base):
+    __tablename__ = "workout_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    assignment_id = Column(Integer, ForeignKey("assignments.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+
+    exercise_id = Column(Integer, ForeignKey("exercises.id"))
+
+    kg = Column(Float, nullable=True)
+    reps = Column(Integer, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
