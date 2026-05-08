@@ -167,100 +167,36 @@ def my_assignments(
 
 
 # ─────────────────────────────────────────
-# CONFIRMAR / RECHAZAR ENTRENAMIENTO
+# MIS LOGS DE PESOS  ← ANTES del wildcard /{assignment_id}
 # ─────────────────────────────────────────
 
-@router.patch("/{assignment_id}/confirm")
-def confirm_assignment(
-    assignment_id: int,
-    data: ConfirmWorkoutSchema,
+@router.get("/logs/mine")
+def get_my_logs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    assignment = db.query(Assignment).filter(
-        Assignment.id == assignment_id
-    ).first()
-
-    if not assignment:
-        raise HTTPException(
-            status_code=404,
-            detail="Asignación no encontrada"
-        )
-
-    if assignment.assigned_to_id != current_user.id:
-        raise HTTPException(
-            status_code=403,
-            detail="No autorizado"
-        )
-
-    assignment.status = data.status
-
-    if data.status == "confirmed":
-        assignment.confirmed_at = datetime.utcnow()
-        assignment.declined_at = None
-
-    elif data.status == "declined":
-        assignment.declined_at = datetime.utcnow()
-        assignment.confirmed_at = None
-
-    db.commit()
-
-    return {
-        "ok": True,
-        "status": assignment.status
-    }
-
-
-# ─────────────────────────────────────────
-# GUARDAR PESOS / REPS
-# ─────────────────────────────────────────
-
-@router.post("/log")
-def save_workout_log(
-    data: WorkoutLogSchema,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    assignment = db.query(Assignment).filter(
-        Assignment.id == data.assignment_id
-    ).first()
-
-    if not assignment:
-        raise HTTPException(
-            status_code=404,
-            detail="Asignación no encontrada"
-        )
-
-    if assignment.assigned_to_id != current_user.id:
-        raise HTTPException(
-            status_code=403,
-            detail="No autorizado"
-        )
-
-    existing = db.query(WorkoutLog).filter(
-        WorkoutLog.assignment_id == data.assignment_id,
-        WorkoutLog.exercise_id == data.exercise_id,
-        WorkoutLog.user_id == current_user.id
-    ).first()
-
-    if existing:
-        existing.kg = data.kg
-        existing.reps = data.reps
-
-    else:
-        log = WorkoutLog(
-            assignment_id=data.assignment_id,
-            user_id=current_user.id,
-            exercise_id=data.exercise_id,
-            kg=data.kg,
-            reps=data.reps
-        )
-
-        db.add(log)
-
-    db.commit()
-
-    return {"ok": True}
+    logs = (
+        db.query(WorkoutLog)
+        .filter(WorkoutLog.user_id == current_user.id)
+        .order_by(WorkoutLog.created_at)
+        .all()
+    )
+    return [
+        {
+            "id": log.id,
+            "assignment_id": log.assignment_id,
+            "exercise_id": log.exercise_id,
+            "kg": log.kg,
+            "reps": log.reps,
+            "created_at": str(log.created_at),
+            "date": str(log.created_at)[:10] if log.created_at else None,
+            "exercise": {
+                "id": log.exercise.id,
+                "name": log.exercise.name,
+            } if log.exercise else None,
+        }
+        for log in logs
+    ]
 
 
 # ─────────────────────────────────────────
@@ -319,6 +255,100 @@ def get_assignments_by_routine(
         }
         for a in assignments
     ]
+
+
+# ─────────────────────────────────────────
+# GUARDAR PESOS / REPS
+# ─────────────────────────────────────────
+
+@router.post("/log")
+def save_workout_log(
+    data: WorkoutLogSchema,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    assignment = db.query(Assignment).filter(
+        Assignment.id == data.assignment_id
+    ).first()
+
+    if not assignment:
+        raise HTTPException(
+            status_code=404,
+            detail="Asignación no encontrada"
+        )
+
+    if assignment.assigned_to_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="No autorizado"
+        )
+
+    existing = db.query(WorkoutLog).filter(
+        WorkoutLog.assignment_id == data.assignment_id,
+        WorkoutLog.exercise_id == data.exercise_id,
+        WorkoutLog.user_id == current_user.id
+    ).first()
+
+    if existing:
+        existing.kg = data.kg
+        existing.reps = data.reps
+    else:
+        log = WorkoutLog(
+            assignment_id=data.assignment_id,
+            user_id=current_user.id,
+            exercise_id=data.exercise_id,
+            kg=data.kg,
+            reps=data.reps
+        )
+        db.add(log)
+
+    db.commit()
+
+    return {"ok": True}
+
+
+# ─────────────────────────────────────────
+# CONFIRMAR / RECHAZAR ENTRENAMIENTO
+# ─────────────────────────────────────────
+
+@router.patch("/{assignment_id}/confirm")
+def confirm_assignment(
+    assignment_id: int,
+    data: ConfirmWorkoutSchema,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    assignment = db.query(Assignment).filter(
+        Assignment.id == assignment_id
+    ).first()
+
+    if not assignment:
+        raise HTTPException(
+            status_code=404,
+            detail="Asignación no encontrada"
+        )
+
+    if assignment.assigned_to_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="No autorizado"
+        )
+
+    assignment.status = data.status
+
+    if data.status == "confirmed":
+        assignment.confirmed_at = datetime.utcnow()
+        assignment.declined_at = None
+    elif data.status == "declined":
+        assignment.declined_at = datetime.utcnow()
+        assignment.confirmed_at = None
+
+    db.commit()
+
+    return {
+        "ok": True,
+        "status": assignment.status
+    }
 
 
 # ─────────────────────────────────────────

@@ -1,0 +1,4 @@
+python -m uvicorn main:app --reload 
+ngrok http 8081   
+npx expo start -c 
+npx expo start -c --tunnel

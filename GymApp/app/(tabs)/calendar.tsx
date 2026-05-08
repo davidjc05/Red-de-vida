@@ -499,9 +499,9 @@ export default function CalendarScreen() {
                 </View>
               </View>
 
-              {exercises.map((ex: any) => (
+              {exercises.map((ex: any, exIndex: number) => (
                 <View
-                  key={`${workout.id}_${ex.id}`}
+                  key={`${workout.id}_${ex.id}_${exIndex}`}
                   style={[
                     s.logCard,
                     {

@@ -1,4 +1,4 @@
-{
+module.exports = {
   "expo": {
     "name": "GymApp",
     "slug": "GymApp",
@@ -66,4 +66,4 @@
       "reactCompiler": true
     }
   }
-}
+};

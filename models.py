@@ -58,14 +58,12 @@ class Routine(Base):
 
     user = relationship("User", back_populates="routines")
 
-    # 🔥 RELACIÓN ANTIGUA (la mantenemos de momento)
     routine_exercises = relationship(
         "RoutineExercise",
         back_populates="routine",
         cascade="all, delete"
     )
 
-    # 🔥 NUEVO SISTEMA DE BLOQUES
     blocks = relationship(
         "Block",
         back_populates="routine",
@@ -76,7 +74,7 @@ class Routine(Base):
 
 
 # ─────────────────────────────────────────
-# BLOQUES (NUEVO)
+# BLOQUES
 # ─────────────────────────────────────────
 
 class Block(Base):
@@ -96,7 +94,7 @@ class Block(Base):
 
 
 # ─────────────────────────────────────────
-# BLOQUE → EJERCICIOS (NUEVO)
+# BLOQUE → EJERCICIOS
 # ─────────────────────────────────────────
 
 class BlockExercise(Base):
@@ -114,7 +112,7 @@ class BlockExercise(Base):
 
 
 # ─────────────────────────────────────────
-# ROUTINE EXERCISE (ANTIGUO - MANTENER TEMP)
+# ROUTINE EXERCISE (legacy)
 # ─────────────────────────────────────────
 
 class RoutineExercise(Base):
@@ -145,9 +143,9 @@ class Assignment(Base):
     assigned_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     note           = Column(String, nullable=True)
     date           = Column(Date, nullable=False)
-    status = Column(String, default="pending")
-    confirmed_at = Column(DateTime, nullable=True)
-    declined_at = Column(DateTime, nullable=True)
+    status         = Column(String, default="pending")
+    confirmed_at   = Column(DateTime, nullable=True)
+    declined_at    = Column(DateTime, nullable=True)
 
     routine = relationship("Routine", back_populates="assignments")
 
@@ -162,18 +160,22 @@ class Assignment(Base):
         foreign_keys=[assigned_by_id],
         back_populates="assignments_sent"
     )
-    
+
+
+# ─────────────────────────────────────────
+# WORKOUT LOG
+# ─────────────────────────────────────────
+
 class WorkoutLog(Base):
     __tablename__ = "workout_logs"
 
-    id = Column(Integer, primary_key=True, index=True)
-
+    id            = Column(Integer, primary_key=True, index=True)
     assignment_id = Column(Integer, ForeignKey("assignments.id"))
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id       = Column(Integer, ForeignKey("users.id"))
+    exercise_id   = Column(Integer, ForeignKey("exercises.id"))
+    kg            = Column(Float, nullable=True)
+    reps          = Column(Integer, nullable=True)
+    created_at    = Column(DateTime, default=datetime.utcnow)
 
-    exercise_id = Column(Integer, ForeignKey("exercises.id"))
-
-    kg = Column(Float, nullable=True)
-    reps = Column(Integer, nullable=True)
-
-    created_at = Column(DateTime, default=datetime.utcnow)
+    # ✅ Relación para acceder a log.exercise.name en los endpoints
+    exercise = relationship("Exercise")

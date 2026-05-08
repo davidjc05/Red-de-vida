@@ -52,14 +52,40 @@ async function authFetch(path: string, options: RequestInit = {}) {
 
 // ── AUTH ──────────────────────────────────────────────────────
 export async function login(email: string, password: string) {
+
   const res = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
-    headers: { 'ngrok-skip-browser-warning': 'true' },
-    body: new URLSearchParams({ username: email, password }),
+
+    headers: {
+      'ngrok-skip-browser-warning': 'true',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+
+    body: new URLSearchParams({
+      username: email,
+      password,
+    }).toString(),
   });
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Error al iniciar sesión');
+  const text = await res.text();
+
+  console.log("LOGIN RAW RESPONSE:", text);
+
+  let data;
+
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(text);
+  }
+
+  if (!res.ok) {
+    throw new Error(
+      typeof data.detail === 'string'
+        ? data.detail
+        : JSON.stringify(data.detail)
+    );
+  }
 
   await saveToken(data.access_token);
 
@@ -335,4 +361,11 @@ export async function saveWorkoutLog(data: {
   }
 
   return json;
+}
+// ── WORKOUT LOGS ──────────────────────────────────────────────
+export async function getMyWorkoutLogs() {
+  const res = await authFetch('/assignments/logs/mine');
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || 'Error al cargar logs');
+  return data;
 }
