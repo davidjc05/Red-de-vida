@@ -1,19 +1,36 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, ActivityIndicator,
-  Modal, TextInput
+  ActivityIndicator, Modal, TextInput, ImageBackground,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Calendar, X } from 'lucide-react-native';
 import { getMyAssignments, confirmWorkout, saveWorkoutLog } from '../../services/api';
 import { Colors } from '../../constants/colors';
+
+const { width } = Dimensions.get('window');
+
+// ─── Paleta ───────────────────────────────────────────────────────────────────
+const G = {
+  primary:  '#3B6D11',
+  mid:      '#5A9E1A',
+  light:    '#EAF3DE',
+  lighter:  '#F4FAF0',
+  accent:   '#97C459',
+  dark:     '#2A5009',
+  white:    '#FFFFFF',
+  text:     '#1A2E0A',
+  textSub:  '#6B8C4A',
+  border:   '#D4E8BB',
+  red:      '#EF4444',
+  redLight: '#FEF2F2',
+};
 
 const DAY_NAMES_SHORT = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const DAY_NAMES_FULL  = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 const MONTH_NAMES     = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-
-const BLOCK_COLORS = ['#3B6D11', '#6366F1', '#F59E0B', '#EC4899', '#0EA5E9', '#22C55E'];
+const BLOCK_COLORS    = [G.primary, '#6366F1', '#F59E0B', '#EC4899', '#0EA5E9', '#22C55E'];
 
 const toDateString = (d: Date) => {
   const y = d.getFullYear();
@@ -25,8 +42,6 @@ const isSameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() &&
   a.getMonth() === b.getMonth() &&
   a.getDate() === b.getDate();
-
-const formatTime = (t?: string) => t ? t.slice(0, 5) : '09:00';
 
 const getMonthGrid = (year: number, month: number): Date[][] => {
   const firstDay = new Date(year, month, 1);
@@ -46,52 +61,457 @@ const getMonthGrid = (year: number, month: number): Date[][] => {
 };
 
 const pad = (n: number) => String(n).padStart(2, '0');
-const parseTime = (t?: string) => {
-  if (!t) return 9 * 60;
-  const m = t.match(/(\d{1,2}):(\d{2})/);
-  if (!m) return 9 * 60;
-  return parseInt(m[1]) * 60 + parseInt(m[2]);
-};
-const formatHour = (h: number) =>
-  h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`;
 
 interface Assignment {
   id: string;
   due_date: string;
   status?: string;
-  start_time?: string;
-  end_time?: string;
   workout?: {
     name: string;
     duration?: number;
     exercises?: {
       id: number; name: string; muscle_group: string;
       sets?: number; reps?: number;
-      description?: string; image_url?: string; video_url?: string;
     }[];
   };
-  client?: { full_name: string };
 }
 
+// ─── Vista del día seleccionado ───────────────────────────────────────────────
+function DayView({
+  date,
+  events,
+  onBack,
+  onSelectEvent,
+}: {
+  date: Date;
+  events: Assignment[];
+  onBack: () => void;
+  onSelectEvent: (ev: Assignment) => void;
+}) {
+  const dayName = DAY_NAMES_FULL[date.getDay() === 0 ? 6 : date.getDay() - 1];
+  const hasEvents = events.length > 0;
+
+  return (
+    <View style={{ flex: 1 }}>
+      {/* Header día */}
+      <View style={dv.header}>
+        <TouchableOpacity onPress={onBack} style={dv.backBtn}>
+          <ChevronLeft size={20} color={G.primary} />
+        </TouchableOpacity>
+        <Text style={dv.title}>
+          {dayName}, {date.getDate()} de {MONTH_NAMES[date.getMonth()]}
+        </Text>
+        <View style={[dv.calIcon, { backgroundColor: G.light }]}>
+          <Calendar size={18} color={G.primary} />
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }}>
+        {/* Banner motivacional o de entreno */}
+        {hasEvents ? (
+          <View style={[dv.banner, { backgroundColor: G.lighter, borderColor: G.border }]}>
+            <View style={[dv.bannerIcon, { backgroundColor: G.light }]}>
+              <Text style={{ fontSize: 22 }}>👟</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={dv.bannerTitle}>¡Día de entreno!</Text>
+              <Text style={dv.bannerSub}>
+                Tienes {events.length} rutina{events.length !== 1 ? 's' : ''} programada{events.length !== 1 ? 's' : ''} para hoy.
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View style={[dv.banner, { backgroundColor: G.lighter, borderColor: G.border }]}>
+            <View style={[dv.bannerIcon, { backgroundColor: G.light }]}>
+              <Text style={{ fontSize: 22 }}>💚</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={dv.bannerTitle}>Cada paso cuenta.</Text>
+              <Text style={dv.bannerSub}>¡Tú puedes!</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Lista rutinas del día */}
+        {hasEvents && (
+          <>
+            <Text style={dv.sectionTitle}>Rutinas del día</Text>
+            {events.map(ev => (
+              <TouchableOpacity
+                key={ev.id}
+                style={[dv.eventRow, { borderColor: G.border }]}
+                onPress={() => onSelectEvent(ev)}
+                activeOpacity={0.85}
+              >
+                <View style={[dv.eventIcon, { backgroundColor: G.light }]}>
+                  <Text style={{ fontSize: 18 }}>🏋️</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={dv.eventName}>{ev.workout?.name ?? 'Rutina'}</Text>
+                  <Text style={dv.eventSub}>
+                    18:00 · {ev.workout?.duration ?? 45} min
+                  </Text>
+                </View>
+                <View style={[
+                  dv.statusPill,
+                  ev.status === 'confirmed' && { backgroundColor: G.light },
+                  ev.status === 'declined'  && { backgroundColor: '#FEE2E2' },
+                  ev.status === 'pending'   && { backgroundColor: '#FEF3C7' },
+                ]}>
+                  <Text style={[
+                    dv.statusText,
+                    ev.status === 'confirmed' && { color: G.primary },
+                    ev.status === 'declined'  && { color: '#991B1B' },
+                    ev.status === 'pending'   && { color: '#92400E' },
+                  ]}>
+                    {ev.status === 'confirmed' ? 'Confirmada' :
+                     ev.status === 'declined'  ? 'Rechazada'  : 'Pendiente'}
+                  </Text>
+                </View>
+                <ChevronRight size={16} color={G.textSub} />
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
+
+        {/* Mensaje sin rutinas */}
+        {!hasEvents && (
+          <View style={dv.emptyBox}>
+            <Text style={{ fontSize: 40 }}>🌿</Text>
+            <Text style={dv.emptyTitle}>Sin rutinas hoy</Text>
+            <Text style={dv.emptySub}>Descansa o disfruta el día libre</Text>
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+const dv = StyleSheet.create({
+  header: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 14,
+    backgroundColor: G.white, borderBottomWidth: 1, borderBottomColor: G.border,
+    gap: 10,
+  },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: G.lighter, alignItems: 'center', justifyContent: 'center' },
+  title: { flex: 1, fontSize: 16, fontWeight: '700', color: G.text },
+  calIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  banner: { borderRadius: 16, borderWidth: 1, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  bannerIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  bannerTitle: { fontSize: 15, fontWeight: '700', color: G.text },
+  bannerSub: { fontSize: 12, color: G.textSub, marginTop: 2 },
+  sectionTitle: { fontSize: 14, fontWeight: '700', color: G.text },
+  eventRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: G.white, borderRadius: 16, borderWidth: 1,
+    padding: 14,
+  },
+  eventIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  eventName: { fontSize: 15, fontWeight: '700', color: G.text },
+  eventSub: { fontSize: 12, color: G.textSub, marginTop: 2 },
+  statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  statusText: { fontSize: 11, fontWeight: '700' },
+  emptyBox: { alignItems: 'center', gap: 8, paddingVertical: 40 },
+  emptyTitle: { fontSize: 16, fontWeight: '700', color: G.text },
+  emptySub: { fontSize: 13, color: G.textSub },
+});
+
+// ─── Modal detalle rutina ─────────────────────────────────────────────────────
+function RoutineModal({
+  event,
+  date,
+  onClose,
+  onConfirm,
+  onDecline,
+  logs,
+  setLogs,
+  onSaveLog,
+  onCancel,
+}: any) {
+  if (!event) return null;
+  const exercises = event.workout?.exercises ?? [];
+  const BLOCK_SIZE = 3;
+  const blocks = exercises.length === 0 ? [] :
+    Array.from({ length: Math.ceil(exercises.length / BLOCK_SIZE) }, (_: any, i: number) =>
+      exercises.slice(i * BLOCK_SIZE, (i + 1) * BLOCK_SIZE)
+    );
+
+  return (
+    <Modal transparent animationType="slide" visible onRequestClose={onClose}>
+      <View style={rm.overlay}>
+        <View style={rm.sheet}>
+          <View style={rm.handle} />
+
+          {/* Header verde */}
+          <View style={rm.hero}>
+            <View style={rm.heroIcon}>
+              <Text style={{ fontSize: 22 }}>🏋️</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={rm.heroTitle}>{event.workout?.name ?? 'Entrenamiento'}</Text>
+              <Text style={rm.heroSub}>
+                18:00 - 18:45 · {event.workout?.duration ?? 45} min
+              </Text>
+            </View>
+            {event.status === 'confirmed' && (
+              <View style={rm.confirmedBadge}>
+                <Text style={rm.confirmedText}>Confirmada</Text>
+              </View>
+            )}
+            <TouchableOpacity onPress={onClose} style={rm.closeBtn}>
+              <X size={18} color={G.accent} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Fecha */}
+          <View style={rm.dateRow}>
+            <View style={[rm.dateIcon, { backgroundColor: G.light }]}>
+              <Calendar size={16} color={G.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={rm.dateLabel}>Fecha</Text>
+              <Text style={rm.dateValue}>
+                {DAY_NAMES_FULL[date.getDay() === 0 ? 6 : date.getDay() - 1]},
+                {' '}{date.getDate()} de {MONTH_NAMES[date.getMonth()]}
+              </Text>
+            </View>
+            {event.status === 'confirmed' && (
+              <View style={[rm.statusPill, { backgroundColor: G.light }]}>
+                <Text style={[rm.statusText, { color: G.primary }]}>Confirmada</Text>
+              </View>
+            )}
+          </View>
+
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+
+            {/* Bloques y ejercicios */}
+            {blocks.map((blockExs: any[], blockIdx: number) => (
+              <View key={blockIdx} style={rm.block}>
+                <View style={rm.blockHeader}>
+                  <View style={[rm.blockDot, { backgroundColor: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length] }]} />
+                  <Text style={[rm.blockTitle, { color: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length] }]}>
+                    Bloque {blockIdx + 1}
+                  </Text>
+                  <Text style={rm.blockCount}>· {blockExs.length} ejercicios</Text>
+                </View>
+
+                {blockExs.map((ex: any, exIdx: number) => (
+                  <View key={`${blockIdx}_${exIdx}`} style={rm.exRow}>
+                    <View style={[rm.exNum, { backgroundColor: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length] + '20' }]}>
+                      <Text style={[rm.exNumText, { color: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length] }]}>
+                        {exIdx + 1}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={rm.exName}>{ex.name}</Text>
+                      <View style={[rm.exBadge, { backgroundColor: G.light }]}>
+                        <Text style={[rm.exBadgeText, { color: G.primary }]}>{ex.muscle_group}</Text>
+                      </View>
+                    </View>
+                    {ex.sets && (
+                      <View style={rm.exStat}>
+                        <Text style={rm.exStatVal}>{ex.sets}</Text>
+                        <Text style={rm.exStatLbl}>series</Text>
+                      </View>
+                    )}
+                    {ex.reps && (
+                      <View style={rm.exStat}>
+                        <Text style={rm.exStatVal}>{ex.reps}</Text>
+                        <Text style={rm.exStatLbl}>reps</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+            ))}
+
+            {/* Log de pesos si está confirmado */}
+            {event.status === 'confirmed' && exercises.map((ex: any, exIndex: number) => (
+              <View key={`log_${exIndex}`} style={rm.logCard}>
+                <Text style={rm.logName}>{ex.name}</Text>
+                <View style={rm.logRow}>
+                  <View style={rm.logField}>
+                    <Text style={rm.logLabel}>KG</Text>
+                    <TextInput
+                      style={rm.logInput}
+                      placeholder="0"
+                      placeholderTextColor={G.textSub}
+                      keyboardType="numeric"
+                      value={logs[`${event.id}_${ex.id}`]?.kg || ''}
+                      onChangeText={t => setLogs((p: any) => ({
+                        ...p, [`${event.id}_${ex.id}`]: { ...p[`${event.id}_${ex.id}`], kg: t }
+                      }))}
+                    />
+                  </View>
+                  <View style={rm.logField}>
+                    <Text style={rm.logLabel}>REPS</Text>
+                    <TextInput
+                      style={rm.logInput}
+                      placeholder="0"
+                      placeholderTextColor={G.textSub}
+                      keyboardType="numeric"
+                      value={logs[`${event.id}_${ex.id}`]?.reps || ''}
+                      onChangeText={t => setLogs((p: any) => ({
+                        ...p, [`${event.id}_${ex.id}`]: { ...p[`${event.id}_${ex.id}`], reps: t }
+                      }))}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={rm.logSaveBtn}
+                    onPress={() => onSaveLog(event.id, ex.id, logs[`${event.id}_${ex.id}`])}
+                  >
+                    <Text style={{ color: G.white, fontWeight: '800', fontSize: 16 }}>✓</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+
+            {/* Acciones */}
+            <View style={{ paddingHorizontal: 4, gap: 10, marginTop: 16 }}>
+              {event.status === 'pending' && (
+                <>
+                  <TouchableOpacity style={rm.btnConfirm} onPress={onConfirm}>
+                    <Text style={rm.btnConfirmText}>✓ Confirmar entreno</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={rm.btnDecline} onPress={onDecline}>
+                    <Text style={rm.btnDeclineText}>✕ No puedo entrenar</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              {event.status === 'confirmed' && (
+                <TouchableOpacity style={rm.btnDecline} onPress={onCancel}>
+                  <Text style={rm.btnDeclineText}>✕ Cancelar entreno</Text>
+                </TouchableOpacity>
+              )}
+              {event.status === 'declined' && (
+                <View style={[rm.statusBanner, { backgroundColor: '#FEE2E2' }]}>
+                  <Text style={[rm.statusBannerText, { color: '#991B1B' }]}>❌ Entrenamiento rechazado</Text>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity style={rm.closeFullBtn} onPress={onClose}>
+              <Text style={rm.closeFullText}>Cerrar</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const rm = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  sheet: {
+    flex: 1, marginTop: 60,
+    backgroundColor: G.white,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: 20, paddingBottom: 0,
+  },
+  handle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: G.border, alignSelf: 'center', marginBottom: 16,
+  },
+  hero: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: G.primary, borderRadius: 16,
+    padding: 14, marginBottom: 14,
+  },
+  heroIcon: {
+    width: 44, height: 44, borderRadius: 12,
+    backgroundColor: G.dark, alignItems: 'center', justifyContent: 'center',
+  },
+  heroTitle: { fontSize: 17, fontWeight: '700', color: G.light },
+  heroSub: { fontSize: 12, color: G.accent, marginTop: 2 },
+  confirmedBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+  },
+  confirmedText: { fontSize: 11, fontWeight: '700', color: G.white },
+  closeBtn: { padding: 4 },
+  dateRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: G.lighter, borderRadius: 12,
+    padding: 12, marginBottom: 14,
+  },
+  dateIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  dateLabel: { fontSize: 10, fontWeight: '700', color: G.textSub, textTransform: 'uppercase', letterSpacing: 0.5 },
+  dateValue: { fontSize: 13, fontWeight: '600', color: G.text, marginTop: 1 },
+  statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  statusText: { fontSize: 11, fontWeight: '700' },
+  block: { marginBottom: 12 },
+  blockHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingVertical: 6, marginBottom: 4,
+  },
+  blockDot: { width: 8, height: 8, borderRadius: 4 },
+  blockTitle: { fontSize: 13, fontWeight: '700' },
+  blockCount: { fontSize: 12, color: G.textSub },
+  exRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: G.border,
+  },
+  exNum: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  exNumText: { fontSize: 12, fontWeight: '700' },
+  exName: { fontSize: 13, fontWeight: '600', color: G.text },
+  exBadge: { alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, marginTop: 3 },
+  exBadgeText: { fontSize: 10, fontWeight: '600' },
+  exStat: { alignItems: 'center', minWidth: 36 },
+  exStatVal: { fontSize: 15, fontWeight: '700', color: G.text },
+  exStatLbl: { fontSize: 9, color: G.textSub },
+  logCard: {
+    backgroundColor: G.lighter, borderRadius: 12,
+    borderWidth: 1, borderColor: G.border,
+    padding: 12, marginBottom: 8,
+  },
+  logName: { fontSize: 13, fontWeight: '700', color: G.text, marginBottom: 8 },
+  logRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-end' },
+  logField: { flex: 1 },
+  logLabel: { fontSize: 10, fontWeight: '700', color: G.primary, letterSpacing: 0.5, marginBottom: 4 },
+  logInput: {
+    borderWidth: 1, borderColor: G.border, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 10,
+    fontSize: 18, fontWeight: '800', textAlign: 'center',
+    color: G.text, backgroundColor: G.white,
+  },
+  logSaveBtn: {
+    backgroundColor: G.primary, width: 48, height: 48,
+    borderRadius: 14, alignItems: 'center', justifyContent: 'center',
+    alignSelf: 'flex-end',
+  },
+  btnConfirm: {
+    backgroundColor: G.primary, borderRadius: 14,
+    paddingVertical: 15, alignItems: 'center',
+  },
+  btnConfirmText: { color: G.white, fontWeight: '700', fontSize: 15 },
+  btnDecline: {
+    borderWidth: 1.5, borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2', borderRadius: 14,
+    paddingVertical: 14, alignItems: 'center', flexDirection: 'row',
+    justifyContent: 'center', gap: 6,
+  },
+  btnDeclineText: { color: '#991B1B', fontWeight: '700', fontSize: 14 },
+  statusBanner: { borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  statusBannerText: { fontWeight: '700', fontSize: 15 },
+  closeFullBtn: {
+    marginTop: 14, paddingVertical: 14,
+    borderRadius: 12, borderWidth: 0.5, borderColor: G.border,
+    alignItems: 'center', marginBottom: 20,
+  },
+  closeFullText: { fontSize: 14, color: G.textSub },
+});
+
+// ─── Pantalla principal ───────────────────────────────────────────────────────
 export default function CalendarScreen() {
-  const isDark = useColorScheme() === 'dark';
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [today] = useState(new Date());
   const [viewYear, setViewYear] = useState(new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(new Date().getMonth());
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<Assignment | null>(null);
-  const [activeWorkout, setActiveWorkout] = useState<Assignment[]>([]);
   const [logs, setLogs] = useState<any>({});
-
-  const C = {
-    bg:      isDark ? '#0F172A' : '#FFFFFF',
-    surface: isDark ? '#1E293B' : '#F8FAFC',
-    text:    isDark ? '#F1F5F9' : '#1A1A1A',
-    sub:     isDark ? '#94A3B8' : '#64748B',
-    border:  isDark ? '#1E2D3D' : '#E5E7EB',
-  };
 
   useEffect(() => {
     (async () => {
@@ -103,30 +523,19 @@ export default function CalendarScreen() {
           id: String(a.id),
           status: a.status || 'pending',
           due_date: a.date?.split('T')[0],
-          start_time: '18:06',
-          end_time: '19:06',
           workout: {
             name: a.routine?.name || 'Rutina',
-            duration: 60,
+            duration: 45,
             exercises: (a.routine?.blocks?.flatMap((block: any) =>
               block.exercises.map((be: any) => ({
                 id: be.exercise?.id, name: be.exercise?.name,
                 muscle_group: be.exercise?.muscle_group,
-                description: be.exercise?.description,
-                image_url: be.exercise?.image_url,
-                video_url: be.exercise?.video_url,
                 sets: be.sets, reps: be.reps,
               }))
             ) || []),
           },
-          client: { full_name: 'Yo' },
         }));
         setAssignments(adapted);
-        const confirmed = adapted.filter(
-          (a: Assignment) => a.status === 'confirmed'
-        );
-
-        setActiveWorkout(confirmed);
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
     })();
@@ -136,9 +545,8 @@ export default function CalendarScreen() {
   const eventsOnDay = (d: Date) => assignments.filter(a => a.due_date === toDateString(d));
   const prevMonth = () => { if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); } else setViewMonth(m => m - 1); };
   const nextMonth = () => { if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); } else setViewMonth(m => m + 1); };
-  const goToday = () => { setViewYear(today.getFullYear()); setViewMonth(today.getMonth()); setSelectedDate(today); };
+  const goToday = () => { setViewYear(today.getFullYear()); setViewMonth(today.getMonth()); setSelectedDate(null); };
 
-  // ── Stats del mes ────────────────────────────────────────────────────────────
   const monthEvents = assignments.filter(a => {
     const d = new Date(a.due_date);
     return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
@@ -146,861 +554,261 @@ export default function CalendarScreen() {
   const confirmedCount = monthEvents.filter(a => a.status === 'confirmed').length;
   const pendingCount   = monthEvents.filter(a => a.status === 'pending').length;
 
-  // ── Month Grid ───────────────────────────────────────────────────────────────
-  const MonthGrid = () => (
-    <View style={{ flex: 1 }}>
-      <View style={[s.dayHeaderRow, { borderBottomColor: C.border, backgroundColor: C.bg }]}>
-        {DAY_NAMES_SHORT.map((d, i) => (
-          <View key={i} style={s.dayHeaderCell}>
-            <Text style={[s.dayHeaderText, { color: C.sub }]}>{d}</Text>
-          </View>
-        ))}
-      </View>
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-        {grid.map((week, wi) => (
-          <View key={wi} style={[s.weekRow, { borderBottomColor: C.border }]}>
-            {week.map((day, di) => {
-              const isCurrentMonth = day.getMonth() === viewMonth;
-              const isToday        = isSameDay(day, today);
-              const isSelected     = isSameDay(day, selectedDate);
-              const events         = eventsOnDay(day);
-              return (
-                <TouchableOpacity
-                  key={di}
-                  style={[
-                    s.dayCell,
-                    { borderRightColor: C.border },
-                    isToday && !isSelected && { backgroundColor: Colors.primaryLight },
-                    isSelected && { backgroundColor: Colors.primaryLight },
-                  ]}
-                  onPress={() => setSelectedDate(day)}
-                  activeOpacity={0.7}
-                >
-                  <View style={s.dayCellHeader}>
-                    <View style={[
-                      s.dayNumCircle,
-                      isSelected && { backgroundColor: Colors.primary },
-                      isToday && !isSelected && { backgroundColor: Colors.primary + '33' },
-                    ]}>
-                      <Text style={[
-                        s.dayNum,
-                        {
-                          color: !isCurrentMonth
-                            ? C.border
-                            : isSelected
-                              ? '#fff'
-                              : isToday
-                                ? Colors.primary
-                                : C.text,
-                        },
-                        (isToday || isSelected) && { fontWeight: '700' },
-                      ]}>
-                        {day.getDate()}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={s.eventChips}>
-                    {events.slice(0, 2).map((ev, ei) => (
-                      <TouchableOpacity
-                        key={ev.id}
-                        style={[
-                          s.eventChip,
-                          { backgroundColor: ev.status === 'confirmed' ? Colors.primary : Colors.primaryDark },
-                        ]}
-                        onPress={() => { setSelectedDate(day); setSelectedEvent(ev); }}
-                        activeOpacity={0.8}
-                      >
-                        <View style={s.eventChipDot} />
-                        <Text style={s.eventChipText} numberOfLines={1}>
-                          {formatTime(ev.start_time)} {ev.workout?.name ?? 'Entreno'}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                    {events.length > 2 && (
-                      <Text style={[s.moreText, { color: C.sub }]}>+{events.length - 2} más</Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ))}
-      </ScrollView>
-    </View>
-  );
-
-  // ── Event Detail Modal ───────────────────────────────────────────────────────
-  const EventModal = () => {
-    if (!selectedEvent) return null;
-    const start = parseTime(selectedEvent.start_time);
-    const dur   = selectedEvent.workout?.duration ?? 60;
-    const sh = Math.floor(start / 60), sm = start % 60;
-    const eh = Math.floor((start + dur) / 60), em = (start + dur) % 60;
-    const exercises = selectedEvent.workout?.exercises ?? [];
-    const BLOCK_SIZE = 3;
-    const blocks = exercises.length === 0 ? [] :
-      Array.from({ length: Math.ceil(exercises.length / BLOCK_SIZE) }, (_, i) =>
-        exercises.slice(i * BLOCK_SIZE, (i + 1) * BLOCK_SIZE)
-      );
-
-    return (
-      <Modal transparent animationType="slide" visible onRequestClose={() => setSelectedEvent(null)}>
-        <View style={s.modalOverlay}>
-          <View style={[s.eventModal, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
-
-            {/* Handle */}
-            <View style={s.modalHandle} />
-
-            {/* Header verde */}
-            <View style={s.modalHero}>
-              <View style={s.modalHeroIcon}>
-                <Text style={{ fontSize: 22 }}>🏋️</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.modalHeroTitle} numberOfLines={2}>
-                  {selectedEvent.workout?.name ?? 'Entrenamiento'}
-                </Text>
-                <Text style={s.modalHeroTime}>
-                  {formatHour(sh)}:{pad(sm)} – {formatHour(eh)}:{pad(em)}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setSelectedEvent(null)} style={s.modalCloseBtn}>
-                <Text style={{ color: Colors.primaryMid, fontSize: 20 }}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Info fecha */}
-            <View style={[s.modalInfoRow, { backgroundColor: Colors.primaryDark, borderColor: Colors.primaryDark }]}>
-              <Text style={{ fontSize: 16 }}>📅</Text>
-              <View>
-                <Text style={s.modalInfoLabel}>FECHA</Text>
-                <Text style={s.modalInfoValue}>
-                  {DAY_NAMES_FULL[selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1]},
-                  {' '}{selectedDate.getDate()} de {MONTH_NAMES[selectedDate.getMonth()]}
-                </Text>
-              </View>
-              {/* Badge estado */}
-              <View style={[
-                s.statusBadge,
-                selectedEvent.status === 'confirmed' && { backgroundColor: Colors.primaryLight },
-                selectedEvent.status === 'declined'  && { backgroundColor: '#FEE2E2' },
-                selectedEvent.status === 'pending'   && { backgroundColor: '#FEF3C7' },
-              ]}>
-                <Text style={[
-                  s.statusBadgeText,
-                  selectedEvent.status === 'confirmed' && { color: Colors.primary },
-                  selectedEvent.status === 'declined'  && { color: '#991B1B' },
-                  selectedEvent.status === 'pending'   && { color: '#92400E' },
-                ]}>
-                  {selectedEvent.status === 'confirmed' ? '✓ Confirmado' :
-                   selectedEvent.status === 'declined'  ? '✗ Rechazado'  : '⏳ Pendiente'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={[s.modalDivider, { backgroundColor: C.border }]} />
-
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-              {exercises.length === 0 ? (
-                <View style={s.noExercises}>
-                  <Text style={{ fontSize: 32, marginBottom: 8 }}>💪</Text>
-                  <Text style={[s.noExercisesTxt, { color: C.sub }]}>Sin ejercicios asignados</Text>
-                </View>
-              ) : blocks.map((blockExs, blockIdx) => (
-                <View key={blockIdx} style={s.blockContainer}>
-                  <View style={[s.blockHeader, {
-                    borderLeftColor: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length],
-                    backgroundColor: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length] + '15',
-                  }]}>
-                    <View style={[s.blockDot, { backgroundColor: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length] }]} />
-                    <Text style={[s.blockTitle, { color: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length] }]}>
-                      Bloque {blockIdx + 1}
-                    </Text>
-                    <Text style={[s.blockCount, { color: C.sub }]}>
-                      {blockExs.length} ejercicio{blockExs.length !== 1 ? 's' : ''}
-                    </Text>
-                  </View>
-                  {blockExs.map((ex: any, exIdx: number) => (
-                    <View
-                      key={ex.id ?? exIdx}
-                      style={[s.exRow, {
-                        borderBottomColor: C.border,
-                        backgroundColor: exIdx % 2 === 0
-                          ? 'transparent'
-                          : isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)',
-                      }]}
-                    >
-                      <View style={[s.exNumber, { backgroundColor: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length] + '20' }]}>
-                        <Text style={[s.exNumberText, { color: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length] }]}>{exIdx + 1}</Text>
-                      </View>
-                      <View style={s.exInfo}>
-                        <Text style={[s.exName, { color: C.text }]}>{ex.name}</Text>
-                        <View style={[s.exBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : Colors.primaryLight }]}>
-                          <Text style={[s.exBadgeText, { color: Colors.primary }]}>{ex.muscle_group}</Text>
-                        </View>
-                      </View>
-                      <View style={s.exStats}>
-                        {ex.sets && (
-                          <View style={s.exStat}>
-                            <Text style={[s.exStatValue, { color: C.text }]}>{ex.sets}</Text>
-                            <Text style={[s.exStatLabel, { color: C.sub }]}>series</Text>
-                          </View>
-                        )}
-                        {ex.reps && (
-                          <View style={s.exStat}>
-                            <Text style={[s.exStatValue, { color: C.text }]}>{ex.reps}</Text>
-                            <Text style={[s.exStatLabel, { color: C.sub }]}>reps</Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              ))}
-
-              {/* Botones de acción */}
-              <View style={{ gap: 10, marginTop: 20, paddingHorizontal: 4 }}>
-                {selectedEvent?.status === 'pending' && (
-                  <>
-                    <TouchableOpacity
-                      style={s.btnConfirm}
-                      onPress={async () => {
-                        try {
-                          await confirmWorkout(Number(selectedEvent.id), 'confirmed');
-                          const updated = { ...selectedEvent, status: 'confirmed' };
-
-                          setAssignments(prev =>
-                            prev.map(a =>
-                              a.id === selectedEvent.id ? updated : a
-                            )
-                          );
-
-                          setActiveWorkout(prev => [
-                            ...prev,
-                            updated,
-                          ]);
-
-                          setSelectedEvent(null);
-                        } catch (e) { console.log(e); }
-                      }}
-                    >
-                      <Text style={s.btnConfirmText}>✓ Confirmar entreno</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={s.btnDecline}
-                      onPress={async () => {
-                        try {
-                          await confirmWorkout(Number(selectedEvent.id), 'declined');
-                          setAssignments(prev => prev.map(a => a.id === selectedEvent.id ? { ...a, status: 'declined' } : a));
-                          setSelectedEvent({ ...selectedEvent, status: 'declined' });
-                        } catch (e) { console.log(e); }
-                      }}
-                    >
-                      <Text style={s.btnDeclineText}>✕ No puedo entrenar</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-                {selectedEvent?.status === 'confirmed' && (
-                  <View style={s.statusBanner}>
-                    <Text style={s.statusBannerText}>✅ Entrenamiento confirmado</Text>
-                  </View>
-                )}
-                {selectedEvent?.status === 'declined' && (
-                  <View style={[s.statusBanner, { backgroundColor: '#FEE2E2' }]}>
-                    <Text style={[s.statusBannerText, { color: '#991B1B' }]}>❌ Entrenamiento rechazado</Text>
-                  </View>
-                )}
-              </View>
-
-              <TouchableOpacity
-                style={[s.modalCloseFullBtn, { borderColor: C.border }]}
-                onPress={() => setSelectedEvent(null)}
-              >
-                <Text style={[s.modalCloseFullTxt, { color: C.sub }]}>Cerrar</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-    );
+  const handleConfirm = async () => {
+    if (!selectedEvent) return;
+    try {
+      await confirmWorkout(Number(selectedEvent.id), 'confirmed');
+      const updated = { ...selectedEvent, status: 'confirmed' };
+      setAssignments(prev => prev.map(a => a.id === selectedEvent.id ? updated : a));
+      setSelectedEvent(updated);
+    } catch (e) { console.log(e); }
   };
 
-  // ── Active Workout Panel ─────────────────────────────────────────────────────
-  const ActiveWorkoutPanel = () => {
-    if (activeWorkout.length === 0) return null;
+  const handleDecline = async () => {
+    if (!selectedEvent) return;
+    try {
+      await confirmWorkout(Number(selectedEvent.id), 'declined');
+      const updated = { ...selectedEvent, status: 'declined' };
+      setAssignments(prev => prev.map(a => a.id === selectedEvent.id ? updated : a));
+      setSelectedEvent(updated);
+    } catch (e) { console.log(e); }
+  };
 
-    return (
-      <View style={{ gap: 16 }}>
-        {activeWorkout.map((workout) => {
-          const exercises = workout.workout?.exercises ?? [];
+  const handleCancel = async () => {
+    if (!selectedEvent) return;
+    try {
+      await confirmWorkout(Number(selectedEvent.id), 'declined');
+      setAssignments(prev => prev.map(a => a.id === selectedEvent.id ? { ...a, status: 'declined' } : a));
+      setSelectedEvent(null);
+    } catch (e) { console.log(e); }
+  };
 
-          return (
-            <View
-              key={workout.id}
-              style={[
-                s.activeWorkoutBox,
-                {
-                  backgroundColor: C.bg,
-                  borderTopColor: Colors.primary + '33',
-                },
-              ]}
-            >
-              <View style={s.activeWorkoutHeader}>
-                <View style={s.activeWorkoutHeroLeft}>
-                  <View style={s.activeWorkoutIconBox}>
-                    <Text style={{ fontSize: 20 }}>🔥</Text>
-                  </View>
-
-                  <View>
-                    <Text style={s.activeWorkoutEyebrow}>
-                      ENTRENO ACTIVO
-                    </Text>
-
-                    <Text
-                      style={[
-                        s.activeWorkoutTitle,
-                        { color: C.text },
-                      ]}
-                    >
-                      {workout.workout?.name ?? 'Entrenamiento'}
-                    </Text>
-
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        color: Colors.primary,
-                        fontWeight: '600',
-                        marginTop: 2,
-                      }}
-                    >
-                      {
-                        DAY_NAMES_FULL[
-                          new Date(workout.due_date).getDay() === 0
-                            ? 6
-                            : new Date(workout.due_date).getDay() - 1
-                        ]
-                      }
-                      {' · '}
-                      {new Date(workout.due_date).getDate()}
-                      {' de '}
-                      {
-                        MONTH_NAMES[
-                          new Date(workout.due_date).getMonth()
-                        ]
-                      }
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={s.activeBadge}>
-                  <Text style={s.activeBadgeText}>
-                    Confirmado
-                  </Text>
-                </View>
-              </View>
-
-              {exercises.map((ex: any, exIndex: number) => (
-                <View
-                  key={`${workout.id}_${ex.id}_${exIndex}`}
-                  style={[
-                    s.logCard,
-                    {
-                      backgroundColor: C.surface,
-                      borderColor: C.border,
-                    },
-                  ]}
-                >
-                  <View style={{ marginBottom: 10 }}>
-                    <Text
-                      style={[
-                        s.logExerciseName,
-                        { color: C.text },
-                      ]}
-                    >
-                      {ex.name}
-                    </Text>
-                  </View>
-
-                  <View style={s.logInputsRow}>
-                    <View style={s.logInputWrap}>
-                      <Text style={s.logInputLabel}>
-                        KG
-                      </Text>
-
-                      <TextInput
-                        placeholder="0"
-                        placeholderTextColor={Colors.textMuted}
-                        keyboardType="numeric"
-                        value={
-                          logs[`${workout.id}_${ex.id}`]?.kg || ''
-                        }
-                        onChangeText={(t) =>
-                          setLogs((prev: any) => ({
-                            ...prev,
-                            [`${workout.id}_${ex.id}`]: {
-                              ...prev[`${workout.id}_${ex.id}`],
-                              kg: t,
-                            },
-                          }))
-                        }
-                        style={[
-                          s.logInput,
-                          {
-                            color: C.text,
-                            borderColor: C.border,
-                            backgroundColor: C.bg,
-                          },
-                        ]}
-                      />
-                    </View>
-
-                    <View style={s.logInputWrap}>
-                      <Text style={s.logInputLabel}>
-                        REPS
-                      </Text>
-
-                      <TextInput
-                        placeholder="0"
-                        placeholderTextColor={Colors.textMuted}
-                        keyboardType="numeric"
-                        value={
-                          logs[`${workout.id}_${ex.id}`]?.reps || ''
-                        }
-                        onChangeText={(t) =>
-                          setLogs((prev: any) => ({
-                            ...prev,
-                            [`${workout.id}_${ex.id}`]: {
-                              ...prev[`${workout.id}_${ex.id}`],
-                              reps: t,
-                            },
-                          }))
-                        }
-                        style={[
-                          s.logInput,
-                          {
-                            color: C.text,
-                            borderColor: C.border,
-                            backgroundColor: C.bg,
-                          },
-                        ]}
-                      />
-                    </View>
-
-                    <TouchableOpacity
-                      style={s.saveLogBtn}
-                      onPress={async () => {
-                        try {
-                          await saveWorkoutLog({
-                            assignment_id: Number(workout.id),
-                            exercise_id: ex.id,
-                            kg: Number(
-                              logs[`${workout.id}_${ex.id}`]?.kg || 0
-                            ),
-                            reps: Number(
-                              logs[`${workout.id}_${ex.id}`]?.reps || 0
-                            ),
-                          });
-                        } catch (e) {
-                          console.log(e);
-                        }
-                      }}
-                    >
-                      <Text style={s.saveLogBtnText}>
-                        ✓
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-
-              <TouchableOpacity
-                style={s.cancelWorkoutBtn}
-                onPress={async () => {
-                  try {
-                    await confirmWorkout(
-                      Number(workout.id),
-                      'declined'
-                    );
-
-                    setAssignments((prev) =>
-                      prev.map((a) =>
-                        a.id === workout.id
-                          ? { ...a, status: 'declined' }
-                          : a
-                      )
-                    );
-
-                    setActiveWorkout((prev) =>
-                      prev.filter((w) => w.id !== workout.id)
-                    );
-                  } catch (e) {
-                    console.log(e);
-                  }
-                }}
-              >
-                <Text style={s.cancelWorkoutText}>
-                  Cancelar entreno
-                </Text>
-              </TouchableOpacity>
-            </View>
-          );
-        })}
-      </View>
-    );
+  const handleSaveLog = async (workoutId: string, exId: number, logData: any) => {
+    try {
+      await saveWorkoutLog({
+        assignment_id: Number(workoutId),
+        exercise_id: exId,
+        kg: Number(logData?.kg || 0),
+        reps: Number(logData?.reps || 0),
+      });
+    } catch (e) { console.log(e); }
   };
 
   return (
-    <SafeAreaView style={[s.container, { backgroundColor: C.bg }]} edges={['top']}>
+    <ImageBackground
+      source={require('../../assets/images/fondoInicio.png')}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      {/* Overlay suave */}
+      <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(244,250,240,0.88)' }} />
 
-      {/* ── Navbar con hero verde ── */}
-      <View style={s.hero}>
-        <TouchableOpacity onPress={goToday} style={s.todayBtn}>
-          <Text style={s.todayBtnText}>Hoy</Text>
-        </TouchableOpacity>
-        <View style={s.navCenter}>
-          <TouchableOpacity onPress={prevMonth} style={s.navBtn}>
-            <ChevronLeft size={20} color={Colors.primaryMid} />
-          </TouchableOpacity>
-          <Text style={s.navTitle}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
-          <TouchableOpacity onPress={nextMonth} style={s.navBtn}>
-            <ChevronRight size={20} color={Colors.primaryMid} />
-          </TouchableOpacity>
-        </View>
-        <View style={{ width: 60 }} />
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
 
-        {/* Stats mensuales */}
-        <View style={s.heroStats}>
-          <View style={s.heroStatItem}>
-            <Text style={s.heroStatVal}>{monthEvents.length}</Text>
-            <Text style={s.heroStatLbl}>sesiones</Text>
-          </View>
-          <View style={s.heroStatDivider} />
-          <View style={s.heroStatItem}>
-            <Text style={s.heroStatVal}>{confirmedCount}</Text>
-            <Text style={s.heroStatLbl}>confirmadas</Text>
-          </View>
-          <View style={s.heroStatDivider} />
-          <View style={s.heroStatItem}>
-            <Text style={s.heroStatVal}>{pendingCount}</Text>
-            <Text style={s.heroStatLbl}>pendientes</Text>
-          </View>
-        </View>
-      </View>
-
-      {loading ? (
-        <View style={s.loadingBox}>
-          <ActivityIndicator color={Colors.primary} size="large" />
-          <Text style={[s.loadingText, { color: C.sub }]}>Cargando agenda…</Text>
-        </View>
-      ) : (
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: 140 }}
-          showsVerticalScrollIndicator={false}
-        >
-          <MonthGrid />
-
-          {activeWorkout.length > 0 && (
-            <View style={s.integratedWorkoutSection}>
-              <ActiveWorkoutPanel />
+        {selectedDate ? (
+          // ── VISTA DEL DÍA ──
+          <DayView
+            date={selectedDate}
+            events={eventsOnDay(selectedDate)}
+            onBack={() => setSelectedDate(null)}
+            onSelectEvent={setSelectedEvent}
+          />
+        ) : (
+          // ── VISTA CALENDARIO ──
+          <>
+            {/* Header */}
+            <View style={s.header}>
+              <TouchableOpacity onPress={goToday} style={s.todayBtn}>
+                <Text style={s.todayText}>Hoy</Text>
+              </TouchableOpacity>
+              <View style={s.navRow}>
+                <TouchableOpacity onPress={prevMonth} style={s.navBtn}>
+                  <ChevronLeft size={20} color={G.primary} />
+                </TouchableOpacity>
+                <Text style={s.navTitle}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
+                <TouchableOpacity onPress={nextMonth} style={s.navBtn}>
+                  <ChevronRight size={20} color={G.primary} />
+                </TouchableOpacity>
+              </View>
+              <View style={[s.calIconBtn, { backgroundColor: G.light }]}>
+                <Calendar size={18} color={G.primary} />
+              </View>
             </View>
-          )}
-        </ScrollView>
-      )}
 
-      <EventModal />
-    </SafeAreaView>
+            {/* Stats */}
+            <View style={s.statsRow}>
+              {[
+                { val: monthEvents.length, lbl: 'sesiones' },
+                { val: confirmedCount,     lbl: 'confirmadas' },
+                { val: pendingCount,       lbl: 'pendientes' },
+              ].map((item, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && <View style={s.statsDivider} />}
+                  <View style={s.statItem}>
+                    <Text style={s.statVal}>{item.val}</Text>
+                    <Text style={s.statLbl}>{item.lbl}</Text>
+                  </View>
+                </React.Fragment>
+              ))}
+            </View>
+
+            {loading ? (
+              <View style={s.loadingBox}>
+                <ActivityIndicator color={G.primary} size="large" />
+                <Text style={{ color: G.textSub, marginTop: 10 }}>Cargando agenda…</Text>
+              </View>
+            ) : (
+              <View style={{ flex: 1, backgroundColor: G.white, marginHorizontal: 12, borderRadius: 20, overflow: 'hidden', marginBottom: 12 }}>
+                {/* Cabecera días */}
+                <View style={s.dayHeaderRow}>
+                  {DAY_NAMES_SHORT.map((d, i) => (
+                    <View key={i} style={s.dayHeaderCell}>
+                      <Text style={s.dayHeaderText}>{d}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Grid */}
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {grid.map((week, wi) => (
+                    <View key={wi} style={[s.weekRow, { borderBottomColor: G.border }]}>
+                      {week.map((day, di) => {
+                        const isCurrentMonth = day.getMonth() === viewMonth;
+                        const isToday    = isSameDay(day, today);
+                        const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
+                        const events     = eventsOnDay(day);
+                        return (
+                          <TouchableOpacity
+                            key={di}
+                            style={[
+                              s.dayCell,
+                              { borderRightColor: G.border },
+                              isToday && !isSelected && { backgroundColor: G.lighter },
+                              isSelected && { backgroundColor: G.light },
+                            ]}
+                            onPress={() => setSelectedDate(day)}
+                            activeOpacity={0.7}
+                          >
+                            <View style={s.dayCellHeader}>
+                              <View style={[
+                                s.dayNumCircle,
+                                isSelected && { backgroundColor: G.primary },
+                                isToday && !isSelected && { backgroundColor: G.primary + '33' },
+                              ]}>
+                                <Text style={[
+                                  s.dayNum,
+                                  {
+                                    color: !isCurrentMonth
+                                      ? G.border
+                                      : isSelected ? G.white
+                                      : isToday ? G.primary
+                                      : G.text,
+                                  },
+                                  (isToday || isSelected) && { fontWeight: '700' },
+                                ]}>
+                                  {day.getDate()}
+                                </Text>
+                              </View>
+                            </View>
+                            <View style={s.eventChips}>
+                              {events.slice(0, 1).map(ev => (
+                                <TouchableOpacity
+                                  key={ev.id}
+                                  style={[
+                                    s.eventChip,
+                                    { backgroundColor: ev.status === 'confirmed' ? G.primary : G.mid },
+                                  ]}
+                                  onPress={() => { setSelectedDate(day); setSelectedEvent(ev); }}
+                                  activeOpacity={0.8}
+                                >
+                                  <Text style={s.eventChipText} numberOfLines={1}>
+                                    18:00 {ev.workout?.name ?? 'Rutina'}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                              {events.length > 1 && (
+                                <Text style={[s.moreText, { color: G.textSub }]}>+{events.length - 1} más</Text>
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </>
+        )}
+
+        {/* Modal detalle rutina */}
+        <RoutineModal
+          event={selectedEvent}
+          date={selectedDate ?? today}
+          onClose={() => setSelectedEvent(null)}
+          onConfirm={handleConfirm}
+          onDecline={handleDecline}
+          onCancel={handleCancel}
+          logs={logs}
+          setLogs={setLogs}
+          onSaveLog={handleSaveLog}
+        />
+
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
+// ─── Estilos ──────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  container: { flex: 1 },
-
-  // ── Hero ──
-  hero: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 14,
+  header: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 12, gap: 8,
   },
   todayBtn: {
-    position: 'absolute',
-    left: 16,
-    top: 14,
-    zIndex: 1,
+    paddingHorizontal: 12, paddingVertical: 6,
+    backgroundColor: G.light, borderRadius: 20,
   },
-  todayBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.primaryLight,
+  todayText: { fontSize: 13, fontWeight: '700', color: G.primary },
+  navRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  navBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: G.light, alignItems: 'center', justifyContent: 'center',
   },
-  navCenter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingBottom: 12,
-  },
-  navTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.primaryLight,
-    minWidth: 160,
-    textAlign: 'center',
-  },
-  navBtn: { padding: 4 },
+  navTitle: { fontSize: 17, fontWeight: '800', color: G.text, minWidth: 130, textAlign: 'center' },
+  calIconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
 
-  heroStats: {
-    flexDirection: 'row',
-    backgroundColor: Colors.primaryDark,
-    borderRadius: 14,
-    padding: 12,
-    alignItems: 'center',
+  statsRow: {
+    flexDirection: 'row', marginHorizontal: 12, marginBottom: 10,
+    backgroundColor: G.white, borderRadius: 16,
+    paddingVertical: 12, paddingHorizontal: 8,
+    borderWidth: 1, borderColor: G.border,
   },
-  heroStatItem: { flex: 1, alignItems: 'center' },
-  heroStatVal:  { fontSize: 20, fontWeight: '700', color: '#EAF3DE' },
-  heroStatLbl:  { fontSize: 11, color: '#97C459', marginTop: 2 },
-  heroStatDivider: { width: 1, height: 28, backgroundColor: Colors.primary },
+  statsDivider: { width: 1, backgroundColor: G.border, marginVertical: 4 },
+  statItem: { flex: 1, alignItems: 'center', gap: 2 },
+  statVal: { fontSize: 22, fontWeight: '800', color: G.primary },
+  statLbl: { fontSize: 10, color: G.textSub, fontWeight: '500' },
 
-  // ── Day grid ──
-  dayHeaderRow:  { flexDirection: 'row', borderBottomWidth: 0.5, paddingVertical: 7 },
+  loadingBox: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
+  dayHeaderRow: {
+    flexDirection: 'row', borderBottomWidth: 1,
+    borderBottomColor: G.border, paddingVertical: 8,
+    backgroundColor: G.lighter,
+  },
   dayHeaderCell: { flex: 1, alignItems: 'center' },
-  dayHeaderText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  weekRow:       { flexDirection: 'row', borderBottomWidth: 0.5, minHeight: 72 },
-  dayCell:       { flex: 1, borderRightWidth: 0.5, paddingTop: 4, paddingHorizontal: 2, paddingBottom: 4 },
+  dayHeaderText: { fontSize: 11, fontWeight: '700', color: G.textSub, textTransform: 'uppercase' },
+
+  weekRow: { flexDirection: 'row', borderBottomWidth: 0.5, minHeight: 68 },
+  dayCell: { flex: 1, borderRightWidth: 0.5, paddingTop: 4, paddingHorizontal: 2, paddingBottom: 4 },
   dayCellHeader: { alignItems: 'center', marginBottom: 2 },
-  dayNumCircle:  { width: 26, height: 26, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
-  dayNum:        { fontSize: 13, fontWeight: '400' },
+  dayNumCircle: { width: 26, height: 26, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
+  dayNum: { fontSize: 13 },
 
-  eventChips:    { gap: 2 },
-  eventChip:     {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2,
-    gap: 3, overflow: 'hidden',
+  eventChips: { gap: 2 },
+  eventChip: {
+    borderRadius: 4, paddingHorizontal: 3, paddingVertical: 2,
   },
-  eventChipDot:  { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.6)', flexShrink: 0 },
-  eventChipText: { fontSize: 9, fontWeight: '600', color: '#fff', flex: 1 },
-  moreText:      { fontSize: 9, paddingHorizontal: 4, marginTop: 1 },
-
-  loadingBox:  { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { fontSize: 14 },
-
-  // ── Modal ──
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  eventModal: {
-    flex: 1,
-    marginTop: 60,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 20,
-    paddingBottom: 36,
-  },
-  modalHandle: {
-    width: 36, height: 4, borderRadius: 2,
-    backgroundColor: '#CBD5E1',
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  modalHero: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: Colors.primary,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 14,
-  },
-  modalHeroIcon: {
-    width: 44, height: 44, borderRadius: 12,
-    backgroundColor: Colors.primaryDark,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  modalHeroTitle: {
-    fontSize: 18, fontWeight: '700', color: '#EAF3DE',
-    flex: 1,
-  },
-  modalHeroTime: {
-    fontSize: 13, color: Colors.primaryMid, marginTop: 2,
-  },
-  modalCloseBtn: { padding: 4 },
-
-  modalInfoRow: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 12, borderWidth: 0.5,
-    padding: 12, marginBottom: 14,
-    gap: 10,
-  },
-  modalInfoLabel: {
-    fontSize: 10, fontWeight: '700',
-    textTransform: 'uppercase', letterSpacing: 0.5,
-    color: Colors.primaryMid, marginBottom: 2,
-  },
-  modalInfoValue: {
-    fontSize: 13, fontWeight: '600',
-    color: Colors.primaryLight, flex: 1,
-  },
-  statusBadge: {
-    marginLeft: 'auto',
-    paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 99,
-  },
-  statusBadgeText: { fontSize: 11, fontWeight: '700' },
-
-  modalDivider:  { height: 0.5, marginBottom: 14 },
-
-  noExercises:   { alignItems: 'center', paddingVertical: 32 },
-  noExercisesTxt:{ fontSize: 14 },
-
-  blockContainer: { marginBottom: 10 },
-  blockHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderLeftWidth: 3, borderRadius: 4, marginBottom: 4,
-  },
-  blockDot:   { width: 8, height: 8, borderRadius: 4 },
-  blockTitle: { fontSize: 13, fontWeight: '700', flex: 1 },
-  blockCount: { fontSize: 11 },
-
-  exRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 0.5, gap: 10,
-  },
-  exNumber: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  exNumberText: { fontSize: 12, fontWeight: '700' },
-  exInfo: { flex: 1, gap: 3 },
-  exName: { fontSize: 13, fontWeight: '600' },
-  exBadge: { alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  exBadgeText: { fontSize: 10, fontWeight: '600' },
-  exStats: { flexDirection: 'row', gap: 10 },
-  exStat: { alignItems: 'center' },
-  exStatValue: { fontSize: 15, fontWeight: '700' },
-  exStatLabel: { fontSize: 10 },
-
-  // Botones acción modal
-  btnConfirm: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 14, borderRadius: 14, alignItems: 'center',
-  },
-  btnConfirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  btnDecline: {
-    borderWidth: 1.5, borderColor: '#FCA5A5',
-    backgroundColor: '#FEF2F2',
-    paddingVertical: 13, borderRadius: 14, alignItems: 'center',
-  },
-  btnDeclineText: { color: '#991B1B', fontWeight: '700', fontSize: 14 },
-  statusBanner: {
-    backgroundColor: Colors.primaryLight,
-    paddingVertical: 14, borderRadius: 14, alignItems: 'center',
-  },
-  statusBannerText: { color: Colors.primary, fontWeight: '700', fontSize: 15 },
-
-  modalCloseFullBtn: {
-    marginTop: 14, paddingVertical: 13,
-    borderRadius: 12, borderWidth: 0.5, alignItems: 'center',
-  },
-  modalCloseFullTxt: { fontSize: 14 },
-
-  // ── Active Workout Panel ──
-  activeWorkoutBox: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-
-    padding: 14,
-    borderRadius: 22,
-
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-
-    elevation: 4,
-  },
-  activeWorkoutHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  activeWorkoutHeroLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  activeWorkoutIconBox: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: Colors.primaryLight,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  activeWorkoutEyebrow: {
-    fontSize: 10, fontWeight: '800',
-    color: Colors.primary, letterSpacing: 1,
-  },
-  activeWorkoutTitle: {
-    fontSize: 16, fontWeight: '700', marginTop: 1,
-  },
-  activeBadge: {
-    backgroundColor: Colors.primaryLight,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 99,
-  },
-  activeBadgeText: {
-    color: Colors.primary, fontSize: 11, fontWeight: '700',
-  },
-
-  logCard: {
-    borderWidth: 1, borderRadius: 10,
-    padding: 10, marginBottom: 8,
-  },
-  logExerciseName: { fontSize: 14, fontWeight: '700' },
-
-  logInputsRow: { flexDirection: 'row', gap: 6, alignItems: 'flex-end' },
-  logInputWrap: { flex: 1 },
-  logInputLabel: {
-    fontSize: 10, fontWeight: '700',
-    color: Colors.primary, letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  logInput: {
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    fontSize: 18,
-    fontWeight: '800',
-    textAlign: 'center',
-    minHeight: 50,
-  },
-  saveLogBtn: {
-    backgroundColor: Colors.primary,
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'flex-end',
-  },
-  saveLogBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-
-  cancelWorkoutBtn: {
-    marginTop: 10,
-    borderWidth: 1, borderColor: '#FCA5A5',
-    backgroundColor: '#FEF2F2',
-    paddingVertical: 12, borderRadius: 12, alignItems: 'center',
-  },
-  cancelWorkoutText: { color: '#991B1B', fontWeight: '700', fontSize: 13 },
-  
-  integratedWorkoutSection: {
-    paddingHorizontal: 14,
-    paddingTop: 22,
-    paddingBottom: 32,
-    backgroundColor: '#F8FAFC',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-
+  eventChipText: { fontSize: 8, fontWeight: '600', color: G.white },
+  moreText: { fontSize: 8, paddingHorizontal: 3, marginTop: 1 },
 });

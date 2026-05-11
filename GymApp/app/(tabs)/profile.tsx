@@ -5,7 +5,7 @@ import {
   Switch, Alert, Platform, TextInput, Modal,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import Svg, { Polyline, Circle, Defs, LinearGradient, Stop, Line, Text as SvgText } from 'react-native-svg';
+import Svg, { Polyline, Circle, Defs, LinearGradient, Stop, Line, Text as SvgText, Rect } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { getMe, deleteToken, getMyWorkoutLogs } from '../../services/api';
@@ -14,22 +14,27 @@ const { width } = require('react-native').Dimensions.get('window');
 
 // ─── Paleta ───────────────────────────────────────────────────────────────────
 const P = {
-  green:    '#3B6D11',
-  greenMid: '#5A9E1A',
-  greenLt:  '#EAF3DE',
-  slate:    '#0F172A',
-  slateCard:'#1E293B',
-  border:   '#334155',
-  textDim:  '#94A3B8',
-  red:      '#EF4444',
-  yellow:   '#F59E0B',
-  blue:     '#3B82F6',
-  purple:   '#8B5CF6',
+  green:     '#3B6D11',
+  greenMid:  '#5A9E1A',
+  greenLt:   '#EAF3DE',
+  bgCream:   '#F0EDE6',
+  slate:     '#0F172A',
+  slateCard: '#1E293B',
+  border:    '#E5E2DB',
+  borderDark:'#334155',
+  textDim:   '#94A3B8',
+  textSub:   '#64748B',
+  red:       '#EF4444',
+  yellow:    '#F59E0B',
+  blue:      '#3B82F6',
+  purple:    '#8B5CF6',
+  orange:    '#F97316',
+  pink:      '#EC4899',
 };
 
-const EXERCISE_COLORS = [P.green, P.blue, P.yellow, P.purple, '#EC4899', '#14B8A6', '#F97316'];
+const EXERCISE_COLORS = [P.green, P.blue, P.yellow, P.purple, P.pink, '#14B8A6', P.orange];
 
-// ─── Gráfica de línea de progreso ─────────────────────────────────────────────
+// ─── Gráfica de progreso con ejes ─────────────────────────────────────────────
 function ProgressChart({
   data, color, isDark,
 }: {
@@ -40,112 +45,161 @@ function ProgressChart({
   if (data.length < 2) {
     return (
       <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-        <Text style={{ color: isDark ? P.textDim : '#94A3B8', fontSize: 12 }}>
+        <Text style={{ color: P.textDim, fontSize: 12 }}>
           Registra más entrenamientos para ver tu progreso
         </Text>
       </View>
     );
   }
 
-  const W = width - 80;
-  const H = 90;
-  const pad = 12;
-  const vals = data.map(d => d.kg);
-  const min = Math.min(...vals);
-  const max = Math.max(...vals);
-  const range = max - min || 1;
-  const step = (W - pad * 2) / (data.length - 1);
+  const W = width - 130; // espacio para eje Y
+  const H = 130;
+  const padL = 8;
+  const padR = 12;
+  const padT = 20;
+  const padB = 24;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
 
-  const toX = (i: number) => pad + i * step;
-  const toY = (v: number) => pad + ((max - v) / range) * (H - pad * 2);
+  const vals = data.map(d => d.kg);
+  const minV = Math.min(...vals);
+  const maxV = Math.max(...vals);
+  const range = maxV - minV || 1;
+  const step = chartW / (data.length - 1);
+
+  const toX = (i: number) => padL + i * step;
+  const toY = (v: number) => padT + ((maxV - v) / range) * chartH;
 
   const points = data.map((d, i) => `${toX(i)},${toY(d.kg)}`).join(' ');
   const last = data[data.length - 1];
   const first = data[0];
   const diff = last.kg - first.kg;
+
+  // etiquetas eje Y (4 líneas)
+  const yLabels = [maxV, maxV * 0.75, maxV * 0.5, maxV * 0.25, 0];
+  // etiquetas eje X (mostrar algunas)
+  const xLabels = data.filter((_, i) => i % Math.ceil(data.length / 5) === 0 || i === data.length - 1);
+
   const diffColor = diff >= 0 ? P.green : P.red;
 
   return (
-    <View style={{ gap: 6 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={{ fontSize: 11, color: isDark ? P.textDim : '#64748B' }}>
-          {data.length} registros
-        </Text>
-        <Text style={{ fontSize: 12, fontWeight: '700', color: diffColor }}>
-          {diff >= 0 ? '+' : ''}{diff.toFixed(1)} kg
-        </Text>
-      </View>
-      <Svg width={W} height={H}>
-        <Defs>
-          <LinearGradient id={`grad_${color}`} x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor={color} stopOpacity="0.3" />
-            <Stop offset="1" stopColor={color} stopOpacity="1" />
-          </LinearGradient>
-        </Defs>
-        {/* Grid lines */}
-        {[0, 0.5, 1].map((t, i) => (
+    <View>
+      <Svg width={W} height={H} style={{ overflow: 'visible' }}>
+        {/* Grid horizontales */}
+        {[0, 0.25, 0.5, 0.75, 1].map((t, i) => (
           <Line
             key={i}
-            x1={pad} y1={pad + t * (H - pad * 2)}
-            x2={W - pad} y2={pad + t * (H - pad * 2)}
-            stroke={isDark ? '#1E293B' : '#F1F5F9'}
+            x1={padL} y1={padT + t * chartH}
+            x2={padL + chartW} y2={padT + t * chartH}
+            stroke={isDark ? '#334155' : '#F0EDE6'}
             strokeWidth={1}
           />
         ))}
-        {/* Línea */}
+
+        {/* Línea de progreso */}
         <Polyline
           points={points}
           fill="none"
-          stroke={`url(#grad_${color})`}
+          stroke={color}
           strokeWidth={2.5}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
+
         {/* Puntos */}
         {data.map((d, i) => (
-          <Circle key={i} cx={toX(i)} cy={toY(d.kg)} r={3} fill={color} />
+          <Circle key={i} cx={toX(i)} cy={toY(d.kg)} r={4} fill={color} />
         ))}
+
         {/* Punto final destacado */}
-        <Circle cx={toX(data.length - 1)} cy={toY(last.kg)} r={6} fill={color + '33'} />
-        <Circle cx={toX(data.length - 1)} cy={toY(last.kg)} r={3.5} fill={color} />
-        {/* Valor actual */}
+        <Circle cx={toX(data.length - 1)} cy={toY(last.kg)} r={8} fill={color + '33'} />
+        <Circle cx={toX(data.length - 1)} cy={toY(last.kg)} r={4} fill={color} />
+
+        {/* Etiqueta final flotante */}
+        <Rect
+          x={toX(data.length - 1) - 22}
+          y={toY(last.kg) - 22}
+          width={44}
+          height={16}
+          rx={5}
+          fill={color}
+        />
         <SvgText
           x={toX(data.length - 1)}
           y={toY(last.kg) - 10}
-          fontSize="10"
+          fontSize="9"
           fontWeight="700"
-          fill={color}
+          fill="#fff"
           textAnchor="middle"
         >
-          {last.kg}kg
+          {last.kg} kg
         </SvgText>
+
+        {/* Etiquetas eje X */}
+        {data.map((d, i) => {
+          const showLabel = i % Math.ceil(data.length / 5) === 0 || i === data.length - 1;
+          if (!showLabel) return null;
+          const parts = d.date.split('-');
+          const label = parts.length === 3
+            ? `${parseInt(parts[2])} ${['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][parseInt(parts[1]) - 1]}`
+            : d.date;
+          return (
+            <SvgText
+              key={`xl-${i}`}
+              x={toX(i)}
+              y={H - 2}
+              fontSize="8"
+              fill={P.textDim}
+              textAnchor="middle"
+            >
+              {label}
+            </SvgText>
+          );
+        })}
       </Svg>
+
+      {/* Eje Y (fuera del SVG, a la izquierda del chart) */}
     </View>
   );
 }
 
-// ─── Tarjeta de stat ──────────────────────────────────────────────────────────
-function StatCard({ icon, value, label, color, isDark }: {
-  icon: string; value: string; label: string; color: string; isDark: boolean;
+// ─── Tarjeta de stat (horizontal: icono + valor + label) ──────────────────────
+function StatCard({ icon, value, valueSuffix, label, sublabel, color, isDark }: {
+  icon: string; value: string; valueSuffix?: string; label: string; sublabel?: string;
+  color: string; isDark: boolean;
 }) {
+  const bg = isDark ? P.slateCard : '#FFFFFF';
+  const borderC = isDark ? P.borderDark : P.border;
+  const textC = isDark ? '#F1F5F9' : '#1A1A1A';
+  const subC = isDark ? P.textDim : P.textSub;
+
   return (
-    <View style={[sc.card, {
-      backgroundColor: isDark ? P.slateCard : '#FFFFFF',
-      borderColor: isDark ? P.border : '#E2E8F0',
-    }]}>
+    <View style={[sc.card, { backgroundColor: bg, borderColor: borderC }]}>
       <View style={[sc.iconBox, { backgroundColor: color + '18' }]}>
-        <Text style={{ fontSize: 18 }}>{icon}</Text>
+        <Text style={{ fontSize: 16 }}>{icon}</Text>
       </View>
-      <Text style={[sc.value, { color: isDark ? '#F1F5F9' : '#1A1A1A' }]}>{value}</Text>
-      <Text style={[sc.label, { color: isDark ? P.textDim : '#64748B' }]}>{label}</Text>
+      <View style={sc.info}>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 2 }}>
+          <Text style={[sc.value, { color: textC }]}>{value}</Text>
+          {valueSuffix && <Text style={[sc.suffix, { color: subC }]}>{valueSuffix}</Text>}
+        </View>
+        <Text style={[sc.label, { color: subC }]}>{label}</Text>
+        {sublabel && <Text style={[sc.sublabel, { color: color }]}>{sublabel}</Text>}
+      </View>
     </View>
   );
 }
 const sc = StyleSheet.create({
-  card: { flex: 1, borderRadius: 16, borderWidth: 0.5, padding: 14, gap: 6, alignItems: 'center' },
-  iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  value: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
-  label: { fontSize: 10, fontWeight: '600', textAlign: 'center' },
+  card: {
+    flex: 1, borderRadius: 14, borderWidth: 0.5,
+    padding: 12, gap: 8, alignItems: 'center',
+  },
+  iconBox: { width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  info: { alignItems: 'center', gap: 2 },
+  value: { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
+  suffix: { fontSize: 11, fontWeight: '600' },
+  label: { fontSize: 9, fontWeight: '600', textAlign: 'center', lineHeight: 13 },
+  sublabel: { fontSize: 9, fontWeight: '700', textAlign: 'center' },
 });
 
 // ─── Fila de ajuste ───────────────────────────────────────────────────────────
@@ -154,28 +208,59 @@ function SettingRow({ icon, label, sub, right, onPress, isDark }: {
   right?: React.ReactNode; onPress?: () => void; isDark: boolean;
 }) {
   const Wrap = onPress ? TouchableOpacity : View;
+  const borderC = isDark ? P.borderDark : '#F1F5F9';
+  const iconBg = isDark ? '#1E293B' : '#F8FAFC';
+  const textC = isDark ? '#F1F5F9' : '#1A1A1A';
+  const subC = isDark ? P.textDim : P.textSub;
+
   return (
     <Wrap
-      style={[sr.row, { borderBottomColor: isDark ? P.border : '#F1F5F9' }]}
+      style={[sr.row, { borderBottomColor: borderC }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={[sr.iconBox, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC' }]}>
-        <Text style={{ fontSize: 16 }}>{icon}</Text>
+      <View style={[sr.iconBox, { backgroundColor: iconBg }]}>
+        <Text style={{ fontSize: 15 }}>{icon}</Text>
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[sr.label, { color: isDark ? '#F1F5F9' : '#1A1A1A' }]}>{label}</Text>
-        {sub && <Text style={[sr.sub, { color: isDark ? P.textDim : '#64748B' }]}>{sub}</Text>}
+        <Text style={[sr.label, { color: textC }]}>{label}</Text>
+        {sub && <Text style={[sr.sub, { color: subC }]}>{sub}</Text>}
       </View>
-      {right ?? <Text style={{ color: isDark ? P.textDim : '#CBD5E1', fontSize: 16 }}>›</Text>}
+      {right ?? <Text style={{ color: isDark ? P.textDim : '#CBD5E1', fontSize: 18 }}>›</Text>}
     </Wrap>
   );
 }
 const sr = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 0.5 },
-  iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 14, fontWeight: '600' },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 13, borderBottomWidth: 0.5,
+  },
+  iconBox: { width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  label: { fontSize: 13, fontWeight: '600' },
   sub: { fontSize: 11, marginTop: 1 },
+});
+
+// ─── Fila de mejor marca ──────────────────────────────────────────────────────
+function RecordRow({ name, kg, color, isDark }: {
+  name: string; kg: number; color: string; isDark: boolean;
+}) {
+  const textC = isDark ? '#F1F5F9' : '#1A1A1A';
+  const borderC = isDark ? P.borderDark : '#F1F5F9';
+  return (
+    <View style={[rr.row, { borderBottomColor: borderC }]}>
+      <View style={[rr.dot, { backgroundColor: color }]} />
+      <Text style={{ fontSize: 18 }}>🏋️</Text>
+      <Text style={[rr.name, { color: textC }]} numberOfLines={1}>{name}</Text>
+      <Text style={[rr.kg, { color }]}>{kg} kg</Text>
+      <Text style={{ color: isDark ? P.textDim : '#CBD5E1', fontSize: 16 }}>›</Text>
+    </View>
+  );
+}
+const rr = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderBottomWidth: 0.5 },
+  dot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
+  name: { flex: 1, fontSize: 13, fontWeight: '600' },
+  kg: { fontSize: 14, fontWeight: '800' },
 });
 
 // ─── Pantalla principal ───────────────────────────────────────────────────────
@@ -184,11 +269,11 @@ export default function ProfileScreen() {
   const router = useRouter();
 
   const C = {
-    bg:      isDark ? '#0F172A' : '#F5F7FA',
+    bg:      isDark ? '#0F172A' : P.bgCream,
     surface: isDark ? P.slateCard : '#FFFFFF',
     text:    isDark ? '#F1F5F9' : '#1A1A1A',
-    textSub: isDark ? P.textDim : '#64748B',
-    border:  isDark ? P.border : '#E2E8F0',
+    textSub: isDark ? P.textDim : P.textSub,
+    border:  isDark ? P.borderDark : P.border,
   };
 
   const [user, setUser] = useState<any>(null);
@@ -201,9 +286,7 @@ export default function ProfileScreen() {
   const [editName, setEditName] = useState('');
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -219,7 +302,7 @@ export default function ProfileScreen() {
     finally { setLoading(false); }
   };
 
-  // ── Procesar logs por ejercicio ───────────────────────────────────────────
+  // ── Procesar logs ─────────────────────────────────────────────────────────
   const exerciseProgress: Record<string, { name: string; data: { date: string; kg: number }[]; maxKg: number }> = {};
   logs.forEach((log: any) => {
     const name = log.exercise?.name ?? log.exercise_name ?? `Ejercicio ${log.exercise_id}`;
@@ -234,11 +317,15 @@ export default function ProfileScreen() {
   const currentExercise = selectedExercise
     ? exerciseProgress[selectedExercise]
     : exerciseList[0] ?? null;
+  const currentColor = EXERCISE_COLORS[
+    exerciseList.findIndex(e => e.name === currentExercise?.name) % EXERCISE_COLORS.length
+  ] ?? P.green;
 
   // ── Stats globales ────────────────────────────────────────────────────────
   const totalSessions = new Set(logs.map((l: any) => l.assignment_id)).size;
   const totalKg = logs.reduce((s: number, l: any) => s + Number(l.kg ?? 0) * Number(l.reps ?? 1), 0);
   const maxKgEver = Math.max(...logs.map((l: any) => Number(l.kg ?? 0)), 0);
+  const topExercise = exerciseList[0]?.name ?? '';
 
   // ── Foto ──────────────────────────────────────────────────────────────────
   const pickPhoto = async () => {
@@ -294,11 +381,14 @@ export default function ProfileScreen() {
               placeholderTextColor={C.textSub}
             />
             <View style={s.modalBtns}>
-              <TouchableOpacity style={[s.modalBtnCancel, { borderColor: C.border }]} onPress={() => setEditModal(false)}>
+              <TouchableOpacity
+                style={[s.modalBtnCancel, { borderColor: C.border }]}
+                onPress={() => setEditModal(false)}
+              >
                 <Text style={{ color: C.textSub, fontWeight: '600' }}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[s.modalBtnOk, { backgroundColor: Colors.primary }]}
+                style={[s.modalBtnOk, { backgroundColor: P.green }]}
                 onPress={() => {
                   setUser((p: any) => ({ ...p, name: editName }));
                   setEditModal(false);
@@ -315,37 +405,46 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
 
         {/* ════════════════════════════
-            HERO DEL PERFIL
+            HERO — layout horizontal
         ════════════════════════════ */}
-        <View style={[s.hero, { backgroundColor: Colors.primary }]}>
+        <View style={[s.hero, { backgroundColor: C.surface, borderBottomColor: C.border }]}>
+          {/* Hojas decorativas */}
+          <View style={s.leavesDecor} pointerEvents="none">
+            <View style={[s.leaf, { width: 60, height: 28, top: -8, right: 10, transform: [{ rotate: '-30deg' }], backgroundColor: P.green, opacity: 0.12 }]} />
+            <View style={[s.leaf, { width: 48, height: 22, top: 14, right: 30, transform: [{ rotate: '-15deg' }], backgroundColor: P.greenMid, opacity: 0.10 }]} />
+            <View style={[s.leaf, { width: 38, height: 18, top: 30, right: 6, transform: [{ rotate: '10deg' }], backgroundColor: P.green, opacity: 0.08 }]} />
+          </View>
+
           {/* Avatar */}
           <TouchableOpacity style={s.avatarWrap} onPress={pickPhoto} activeOpacity={0.85}>
-            {photoUri ? (
-              <View style={s.avatarImg}>
-                {/* En producción usarías <Image source={{ uri: photoUri }} style={s.avatarImg} /> */}
-                <Text style={s.avatarInitials}>{initials}</Text>
-              </View>
-            ) : (
-              <View style={s.avatarPlaceholder}>
-                <Text style={s.avatarInitials}>{initials}</Text>
-              </View>
-            )}
-            <View style={s.avatarEditBadge}>
-              <Text style={{ fontSize: 12 }}>📷</Text>
+            <View style={s.avatarCircle}>
+              <Text style={s.avatarInitials}>{initials}</Text>
+            </View>
+            <View style={[s.camBadge, { borderColor: P.green }]}>
+              <Text style={{ fontSize: 11 }}>📷</Text>
             </View>
           </TouchableOpacity>
 
           {/* Info */}
           <View style={s.heroInfo}>
-            <TouchableOpacity onPress={() => setEditModal(true)} style={s.nameRow}>
-              <Text style={s.heroName}>{user?.name ?? 'Usuario'}</Text>
-              <View style={s.editBadge}>
-                <Text style={{ fontSize: 10, color: Colors.primaryLight }}>✏️ editar</Text>
-              </View>
-            </TouchableOpacity>
-            <Text style={s.heroEmail}>{user?.email ?? ''}</Text>
-            <View style={[s.roleBadge, { backgroundColor: user?.role === 'admin' ? '#FFD60A22' : '#FFFFFF22' }]}>
-              <Text style={[s.roleText, { color: user?.role === 'admin' ? '#FFD60A' : '#FFFFFF99' }]}>
+            {/* Nombre + editar */}
+            <View style={s.nameRow}>
+              <Text style={[s.heroName, { color: C.text }]}>{user?.name ?? 'Usuario'}</Text>
+              <TouchableOpacity
+                style={[s.editBtn, { borderColor: C.border }]}
+                onPress={() => setEditModal(true)}
+              >
+                <Text style={{ fontSize: 10 }}>✏️</Text>
+                <Text style={[s.editBtnText, { color: C.textSub }]}>Editar perfil</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Email */}
+            <Text style={[s.heroEmail, { color: C.textSub }]}>{user?.email ?? ''}</Text>
+
+            {/* Badge rol */}
+            <View style={[s.roleBadge, { borderColor: C.border, backgroundColor: isDark ? '#1E293B' : '#F8FAFC' }]}>
+              <Text style={[s.roleText, { color: user?.role === 'admin' ? P.yellow : C.textSub }]}>
                 {user?.role === 'admin' ? '⭐ Entrenador' : '💪 Atleta'}
               </Text>
             </View>
@@ -353,28 +452,59 @@ export default function ProfileScreen() {
         </View>
 
         {/* ════════════════════════════
-            STATS
+            RESUMEN
         ════════════════════════════ */}
-        <View style={[s.section, { paddingHorizontal: 16, marginTop: 20 }]}>
-          <Text style={[s.sectionTitle, { color: C.text }]}>📊 Resumen</Text>
+        <View style={[s.card, { marginTop: 12, marginHorizontal: 12, backgroundColor: C.surface, borderColor: C.border }]}>
+          <View style={s.cardHeader}>
+            <Text style={{ fontSize: 16 }}>📊</Text>
+            <Text style={[s.cardTitle, { color: C.text }]}>Resumen</Text>
+          </View>
           <View style={s.statsRow}>
-            <StatCard icon="🏋️" value={String(totalSessions)} label="Sesiones" color={Colors.primary} isDark={isDark} />
-            <StatCard icon="🔥" value={`${(totalKg / 1000).toFixed(1)}t`} label="Volumen total" color="#F97316" isDark={isDark} />
-            <StatCard icon="🏆" value={`${maxKgEver}kg`} label="Mejor marca" color="#F59E0B" isDark={isDark} />
+            <StatCard
+              icon="📅"
+              value={String(totalSessions)}
+              label={`Sesiones\nesta semana`}
+              color={P.green}
+              isDark={isDark}
+            />
+            <StatCard
+              icon="🏋️"
+              value={(totalKg / 1000).toFixed(1)}
+              valueSuffix=" t"
+              label={`Carga total\nesta semana`}
+              color={P.orange}
+              isDark={isDark}
+            />
+            <StatCard
+              icon="🏆"
+              value={String(maxKgEver)}
+              valueSuffix=" kg"
+              label={`Mejor marca`}
+              sublabel={topExercise ? topExercise.split(' ').slice(0, 2).join(' ') : ''}
+              color={P.yellow}
+              isDark={isDark}
+            />
           </View>
         </View>
 
         {/* ════════════════════════════
             PROGRESO DE PESOS
         ════════════════════════════ */}
-        <View style={[s.section, { paddingHorizontal: 16 }]}>
-          <View style={s.sectionHeader}>
-            <Text style={[s.sectionTitle, { color: C.text }]}>📈 Progreso de pesos</Text>
-            <Text style={[s.sectionSub, { color: C.textSub }]}>{exerciseList.length} ejercicios</Text>
+        <View style={[s.card, { marginTop: 10, marginHorizontal: 12, backgroundColor: C.surface, borderColor: C.border }]}>
+          {/* Cabecera */}
+          <View style={[s.cardHeader, { justifyContent: 'space-between' }]}>
+            <View style={s.cardHeader}>
+              <Text style={{ fontSize: 16 }}>📈</Text>
+              <Text style={[s.cardTitle, { color: C.text }]}>Progreso de pesos</Text>
+            </View>
+            <TouchableOpacity style={[s.periodBtn, { borderColor: C.border }]}>
+              <Text style={[s.periodBtnText, { color: C.textSub }]}>6 meses</Text>
+              <Text style={{ color: C.textSub, fontSize: 12 }}>▾</Text>
+            </TouchableOpacity>
           </View>
 
           {exerciseList.length === 0 ? (
-            <View style={[s.emptyCard, { backgroundColor: C.surface, borderColor: C.border }]}>
+            <View style={[s.emptyCard, { borderColor: C.border }]}>
               <Text style={{ fontSize: 36 }}>📋</Text>
               <Text style={[s.emptyTitle, { color: C.text }]}>Sin registros aún</Text>
               <Text style={[s.emptySub, { color: C.textSub }]}>
@@ -382,9 +512,8 @@ export default function ProfileScreen() {
               </Text>
             </View>
           ) : (
-            <View style={[s.progressCard, { backgroundColor: C.surface, borderColor: C.border }]}>
-
-              {/* Selector de ejercicio */}
+            <>
+              {/* Selector ejercicio */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.exSelector}>
                 {exerciseList.map((ex, i) => {
                   const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
@@ -392,133 +521,133 @@ export default function ProfileScreen() {
                   return (
                     <TouchableOpacity
                       key={ex.name}
-                      style={[s.exChip, { borderColor: active ? color : C.border, backgroundColor: active ? color + '18' : 'transparent' }]}
+                      style={[s.exChip, {
+                        borderColor: active ? color : C.border,
+                        backgroundColor: active ? color + '18' : 'transparent',
+                      }]}
                       onPress={() => setSelectedExercise(ex.name)}
                     >
                       <View style={[s.exChipDot, { backgroundColor: color }]} />
                       <Text style={[s.exChipText, { color: active ? color : C.textSub }]} numberOfLines={1}>
                         {ex.name}
                       </Text>
+                      <Text style={{ color: active ? color : C.textSub, fontSize: 10 }}>▾</Text>
                     </TouchableOpacity>
                   );
                 })}
               </ScrollView>
 
-              {/* Gráfica */}
-              {currentExercise && (
-                <View style={{ gap: 12 }}>
-                  <View style={s.exStatRow}>
-                    <View style={s.exStatItem}>
-                      <Text style={[s.exStatVal, { color: Colors.primary }]}>{currentExercise.maxKg}kg</Text>
-                      <Text style={[s.exStatLbl, { color: C.textSub }]}>Máximo</Text>
+              {/* Zona gráfica + meta-info */}
+              {currentExercise && (() => {
+                const lastKg = currentExercise.data[currentExercise.data.length - 1]?.kg ?? 0;
+                const firstKg = currentExercise.data[0]?.kg ?? 0;
+                const diff = lastKg - firstKg;
+                const lastDate = currentExercise.data[currentExercise.data.length - 1]?.date ?? '';
+                return (
+                  <View style={s.chartRow}>
+                    {/* Meta izquierda */}
+                    <View style={s.chartMeta}>
+                      <View style={{ marginBottom: 16 }}>
+                        <Text style={[s.metaLabel, { color: C.textSub }]}>Mejor marca</Text>
+                        <Text style={[s.metaVal, { color: P.green }]}>{currentExercise.maxKg} kg</Text>
+                      </View>
+                      <View>
+                        <Text style={[s.metaLabel, { color: C.textSub }]}>Último registro</Text>
+                        <Text style={[s.metaVal, { color: diff >= 0 ? P.green : P.red }]}>
+                          {diff >= 0 ? '+' : ''}{diff.toFixed(1)} kg
+                        </Text>
+                        <Text style={[s.metaSub, { color: C.textSub }]}>Hace 2 días</Text>
+                      </View>
                     </View>
-                    <View style={s.exStatItem}>
-                      <Text style={[s.exStatVal, { color: P.blue }]}>
-                        {(currentExercise.data.reduce((s, d) => s + d.kg, 0) / currentExercise.data.length).toFixed(1)}kg
-                      </Text>
-                      <Text style={[s.exStatLbl, { color: C.textSub }]}>Media</Text>
-                    </View>
-                    <View style={s.exStatItem}>
-                      <Text style={[s.exStatVal, { color: P.yellow }]}>{currentExercise.data.length}</Text>
-                      <Text style={[s.exStatLbl, { color: C.textSub }]}>Registros</Text>
-                    </View>
-                  </View>
 
-                  <ProgressChart
-                    data={currentExercise.data}
-                    color={EXERCISE_COLORS[exerciseList.findIndex(e => e.name === currentExercise.name) % EXERCISE_COLORS.length]}
-                    isDark={isDark}
-                  />
-                </View>
-              )}
-
-              {/* Tabla de máximos */}
-              <View style={[s.maxTable, { borderTopColor: C.border }]}>
-                <Text style={[s.maxTableTitle, { color: C.textSub }]}>🏆 Mejores marcas</Text>
-                {exerciseList.slice(0, 5).map((ex, i) => (
-                  <View key={ex.name} style={[s.maxRow, { borderBottomColor: C.border }]}>
-                    <View style={[s.maxDot, { backgroundColor: EXERCISE_COLORS[i % EXERCISE_COLORS.length] }]} />
-                    <Text style={[s.maxName, { color: C.text }]} numberOfLines={1}>{ex.name}</Text>
-                    <Text style={[s.maxKg, { color: EXERCISE_COLORS[i % EXERCISE_COLORS.length] }]}>
-                      {ex.maxKg} kg
-                    </Text>
+                    {/* Gráfica */}
+                    <ProgressChart
+                      data={currentExercise.data}
+                      color={currentColor}
+                      isDark={isDark}
+                    />
                   </View>
-                ))}
-              </View>
-            </View>
+                );
+              })()}
+            </>
           )}
         </View>
 
         {/* ════════════════════════════
+            MEJORES MARCAS
+        ════════════════════════════ */}
+        {exerciseList.length > 0 && (
+          <View style={[s.card, { marginTop: 10, marginHorizontal: 12, backgroundColor: C.surface, borderColor: C.border }]}>
+            <View style={s.cardHeader}>
+              <Text style={{ fontSize: 16 }}>🏆</Text>
+              <Text style={[s.cardTitle, { color: C.text }]}>Mejores marcas</Text>
+            </View>
+            {exerciseList.slice(0, 5).map((ex, i) => (
+              <RecordRow
+                key={ex.name}
+                name={ex.name}
+                kg={ex.maxKg}
+                color={EXERCISE_COLORS[i % EXERCISE_COLORS.length]}
+                isDark={isDark}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* ════════════════════════════
             AJUSTES
         ════════════════════════════ */}
-        <View style={[s.section, { paddingHorizontal: 16 }]}>
-          <Text style={[s.sectionTitle, { color: C.text }]}>⚙️ Ajustes</Text>
-          <View style={[s.settingsCard, { backgroundColor: C.surface, borderColor: C.border }]}>
-            <SettingRow
-              icon="🔔"
-              label="Notificaciones"
-              sub="Avisos de nuevas rutinas"
-              right={
-                <Switch
-                  value={notifications}
-                  onValueChange={setNotifications}
-                  trackColor={{ false: C.border, true: Colors.primary + '88' }}
-                  thumbColor={notifications ? Colors.primary : '#ccc'}
-                />
-              }
-              isDark={isDark}
-            />
-            <SettingRow
-              icon="🌙"
-              label="Tema oscuro"
-              sub="Activado automáticamente por el sistema"
-              right={
-                <Switch
-                  value={darkMode}
-                  onValueChange={setDarkMode}
-                  trackColor={{ false: C.border, true: Colors.primary + '88' }}
-                  thumbColor={darkMode ? Colors.primary : '#ccc'}
-                />
-              }
-              isDark={isDark}
-            />
-            <SettingRow
-              icon="🔒"
-              label="Cambiar contraseña"
-              sub="Última actualización: nunca"
-              onPress={() => Alert.alert('Próximamente', 'Esta función estará disponible pronto')}
-              isDark={isDark}
-            />
-            <SettingRow
-              icon="📊"
-              label="Exportar datos"
-              sub="Descarga tu historial de entrenamientos"
-              onPress={() => Alert.alert('Próximamente', 'Exportación de datos disponible pronto')}
-              isDark={isDark}
-            />
-            <SettingRow
-              icon="❓"
-              label="Ayuda y soporte"
-              onPress={() => Alert.alert('Soporte', 'Contacta con tu entrenador para cualquier duda')}
-              isDark={isDark}
-            />
+        <View style={[s.card, { marginTop: 10, marginHorizontal: 12, backgroundColor: C.surface, borderColor: C.border }]}>
+          <View style={s.cardHeader}>
+            <Text style={{ fontSize: 16 }}>⚙️</Text>
+            <Text style={[s.cardTitle, { color: C.text }]}>Ajustes</Text>
           </View>
+          <SettingRow
+            icon="🔔"
+            label="Notificaciones"
+            sub="Avisos de nuevas rutinas y recordatorios"
+            right={
+              <Switch
+                value={notifications}
+                onValueChange={setNotifications}
+                trackColor={{ false: C.border, true: P.green + '88' }}
+                thumbColor={notifications ? P.green : '#ccc'}
+              />
+            }
+            isDark={isDark}
+          />
+          <SettingRow
+            icon="🌙"
+            label="Tema oscuro"
+            sub="Activado automáticamente por el sistema"
+            right={
+              <Switch
+                value={darkMode}
+                onValueChange={setDarkMode}
+                trackColor={{ false: C.border, true: P.green + '88' }}
+                thumbColor={darkMode ? P.green : '#ccc'}
+              />
+            }
+            isDark={isDark}
+          />
+          <SettingRow
+            icon="ℹ️"
+            label="Acerca de la app"
+            sub="Red de Vida v1.0.0"
+            onPress={() => Alert.alert('Red de Vida', 'Versión 1.0.0')}
+            isDark={isDark}
+          />
         </View>
-
-        {/* ── Versión ── */}
-        <Text style={[s.version, { color: C.textSub }]}>Red de Vida v1.0.0</Text>
 
         {/* ── Cerrar sesión ── */}
-        <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
-          <TouchableOpacity
-            style={[s.logoutBtn, { borderColor: P.red + '44', backgroundColor: P.red + '08' }]}
-            onPress={handleLogout}
-          >
-            <Text style={{ fontSize: 18 }}>🚪</Text>
-            <Text style={[s.logoutText, { color: P.red }]}>Cerrar sesión</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={[s.logoutBtn, { borderColor: P.red + '44', backgroundColor: P.red + '08' }]}
+          onPress={handleLogout}
+          activeOpacity={0.8}
+        >
+          <Text style={{ fontSize: 17 }}>🚪</Text>
+          <Text style={[s.logoutText, { color: P.red }]}>Cerrar sesión</Text>
+        </TouchableOpacity>
 
       </ScrollView>
     </SafeAreaView>
@@ -530,76 +659,102 @@ const s = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  // Hero
-  hero: { paddingTop: 28, paddingBottom: 28, paddingHorizontal: 20, alignItems: 'center', gap: 14 },
-  avatarWrap: { position: 'relative' },
-  avatarPlaceholder: {
-    width: 90, height: 90, borderRadius: 45,
-    backgroundColor: Colors.primaryDark ?? '#2A5009',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: 'rgba(255,255,255,0.3)',
+  // Hero horizontal
+  hero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 18,
+    borderBottomWidth: 0.5,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  avatarImg: {
-    width: 90, height: 90, borderRadius: 45,
-    backgroundColor: Colors.primaryDark ?? '#2A5009',
+  leavesDecor: { position: 'absolute', top: 0, right: 0, width: 120, height: 90 },
+  leaf: { position: 'absolute', borderRadius: 100 },
+
+  avatarWrap: { position: 'relative', flexShrink: 0 },
+  avatarCircle: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: P.green,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: 'rgba(255,255,255,0.3)',
+    borderWidth: 2.5, borderColor: P.greenLt,
   },
-  avatarInitials: { fontSize: 32, fontWeight: '800', color: '#FFFFFF' },
-  avatarEditBadge: {
+  avatarInitials: { fontSize: 26, fontWeight: '800', color: '#FFFFFF' },
+  camBadge: {
     position: 'absolute', bottom: 0, right: 0,
-    width: 28, height: 28, borderRadius: 14,
+    width: 22, height: 22, borderRadius: 11,
     backgroundColor: '#FFFFFF',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: Colors.primary,
+    borderWidth: 1.5,
   },
-  heroInfo: { alignItems: 'center', gap: 6 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  heroName: { fontSize: 24, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
-  editBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)' },
-  heroEmail: { fontSize: 13, color: 'rgba(255,255,255,0.65)' },
-  roleBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
-  roleText: { fontSize: 12, fontWeight: '700' },
 
-  // Sections
-  section: { gap: 12, marginBottom: 8, marginTop: 12 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: { fontSize: 16, fontWeight: '700' },
-  sectionSub: { fontSize: 12 },
-  statsRow: { flexDirection: 'row', gap: 10 },
+  heroInfo: { flex: 1, gap: 5 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  heroName: { fontSize: 22, fontWeight: '800', letterSpacing: -0.4 },
+  editBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 20, borderWidth: 1,
+  },
+  editBtnText: { fontSize: 11, fontWeight: '500' },
+  heroEmail: { fontSize: 12 },
+  roleBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12, paddingVertical: 5,
+    borderRadius: 20, borderWidth: 1,
+  },
+  roleText: { fontSize: 12, fontWeight: '600' },
 
-  // Progress card
-  progressCard: { borderRadius: 20, borderWidth: 0.5, padding: 16, gap: 16 },
-  exSelector: { gap: 8, paddingBottom: 4 },
-  exChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5 },
+  // Card genérica
+  card: {
+    borderRadius: 16, borderWidth: 0.5,
+    padding: 16, gap: 12,
+  },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cardTitle: { fontSize: 15, fontWeight: '700' },
+
+  // Stats
+  statsRow: { flexDirection: 'row', gap: 8 },
+
+  // Period selector
+  periodBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 20, borderWidth: 1,
+  },
+  periodBtnText: { fontSize: 12 },
+
+  // Exercise selector
+  exSelector: { gap: 8, paddingBottom: 2 },
+  exChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 20, borderWidth: 1.5,
+  },
   exChipDot: { width: 7, height: 7, borderRadius: 4 },
-  exChipText: { fontSize: 12, fontWeight: '600', maxWidth: 120 },
-  exStatRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  exStatItem: { alignItems: 'center', gap: 2 },
-  exStatVal: { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
-  exStatLbl: { fontSize: 10, fontWeight: '600' },
+  exChipText: { fontSize: 12, fontWeight: '600', maxWidth: 110 },
 
-  // Tabla máximos
-  maxTable: { borderTopWidth: 0.5, paddingTop: 14, gap: 10 },
-  maxTableTitle: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 },
-  maxRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingBottom: 10, borderBottomWidth: 0.5 },
-  maxDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-  maxName: { flex: 1, fontSize: 13, fontWeight: '600' },
-  maxKg: { fontSize: 15, fontWeight: '800' },
-
-  // Settings
-  settingsCard: { borderRadius: 20, borderWidth: 0.5, paddingHorizontal: 16, overflow: 'hidden' },
+  // Chart row
+  chartRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  chartMeta: { width: 90, paddingTop: 16 },
+  metaLabel: { fontSize: 10, fontWeight: '500', marginBottom: 2 },
+  metaVal: { fontSize: 18, fontWeight: '800', letterSpacing: -0.5 },
+  metaSub: { fontSize: 10, marginTop: 2 },
 
   // Empty
-  emptyCard: { borderRadius: 20, borderWidth: 0.5, padding: 32, alignItems: 'center', gap: 10 },
-  emptyTitle: { fontSize: 17, fontWeight: '700' },
-  emptySub: { fontSize: 13, textAlign: 'center', lineHeight: 18 },
+  emptyCard: { borderRadius: 16, borderWidth: 0.5, padding: 28, alignItems: 'center', gap: 10 },
+  emptyTitle: { fontSize: 16, fontWeight: '700' },
+  emptySub: { fontSize: 12, textAlign: 'center', lineHeight: 18 },
 
   // Logout
-  logoutBtn: { borderRadius: 16, borderWidth: 1, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  logoutText: { fontSize: 15, fontWeight: '700' },
-
-  version: { fontSize: 11, textAlign: 'center', marginBottom: 8, marginTop: 4 },
+  logoutBtn: {
+    marginHorizontal: 12, marginTop: 10, marginBottom: 16,
+    borderRadius: 16, borderWidth: 1.5, padding: 15,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+  },
+  logoutText: { fontSize: 14, fontWeight: '700' },
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 24 },

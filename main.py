@@ -1,24 +1,25 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from database import engine, Base
 from routes import assignments, users, exercises, routines, auth
-from fastapi.middleware.cors import CORSMiddleware
-from routes import routines
-# Crea todas las tablas en la base de datos al arrancar
+from routes.chat import chat_bp
+from routes.calls import calls_bp
+
+
+# =========================
+# DATABASE
+# =========================
+
 Base.metadata.create_all(bind=engine)
+
+# =========================
+# FASTAPI
+# =========================
 
 app = FastAPI(
     title="Gym API",
-    description="""
-## API REST para gestión de entrenamientos
-
-Gestiona usuarios, ejercicios y rutinas de gimnasio.
-
-### Funcionalidades:
-- **Usuarios**: Crear y consultar usuarios
-- **Ejercicios**: Catálogo de ejercicios por grupo muscular
-- **Rutinas**: Crear rutinas y asignarles ejercicios
-    """,
-    version="1.0.0",
+    version="1.0.0"
 )
 
 app.add_middleware(
@@ -29,18 +30,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Registra los routers
+# =========================
+# ROUTES
+# =========================
+
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(exercises.router)
 app.include_router(routines.router)
 app.include_router(assignments.router)
+app.include_router(chat_bp)
+app.include_router(calls_bp)
 
 
-@app.get("/", tags=["Home"])
+# =========================
+# TEST
+# =========================
+
+@app.get("/")
 def home():
     return {
-        "msg": "Gym API funcionando",
-        "docs": "/docs",
-        "version": "1.0.0"
+        "msg": "Gym API funcionando"
     }

@@ -2,12 +2,29 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
   useColorScheme, Dimensions, ScrollView, Platform, Alert,
+  ImageBackground,
 } from 'react-native';
 import * as Location from 'expo-location';
 import Svg, { Polyline, Circle, Line, Text as SvgText } from 'react-native-svg';
 import { Colors } from '../../constants/colors';
 
 const { width, height } = Dimensions.get('window');
+
+// ─── Paleta ───────────────────────────────────────────────────────────────────
+const P = {
+  green:    '#3B6D11',
+  greenMid: '#5A9E1A',
+  greenLt:  '#EAF3DE',
+  bgCream:  '#F2F5EE',
+  border:   '#E5E2DB',
+  textMain: '#1A1A1A',
+  textSub:  '#5F5E5A',
+  textHint: '#94A3B8',
+  purple:   '#6366F1',
+  amber:    '#F59E0B',
+  red:      '#EF4444',
+  teal:     '#10B981',
+};
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 type Coord = { latitude: number; longitude: number };
@@ -39,12 +56,11 @@ function formatPace(paceSecPerKm: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-// ─── Mini mapa SVG (simulado en web, real en móvil) ───────────────────────────
+// ─── Mini mapa SVG ────────────────────────────────────────────────────────────
 function RouteMap({ coords, isDark }: { coords: Coord[]; isDark: boolean }) {
   const W = width - 40;
   const H = 200;
   const bg = isDark ? '#0F172A' : '#E2E8F0';
-  const routeColor = Colors.primary;
 
   if (coords.length < 2) {
     return (
@@ -76,14 +92,13 @@ function RouteMap({ coords, isDark }: { coords: Coord[]; isDark: boolean }) {
 
   return (
     <Svg width={W} height={H} style={{ borderRadius: 16 }}>
-      <Polyline points={points} fill="none" stroke={routeColor} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-      <Circle cx={toX(coords[0].longitude)} cy={toY(coords[0].latitude)} r={6} fill="#10B981" />
-      <Circle cx={toX(last.longitude)} cy={toY(last.latitude)} r={8} fill={routeColor} />
-      <Circle cx={toX(last.longitude)} cy={toY(last.latitude)} r={14} fill={routeColor + '33'} />
+      <Polyline points={points} fill="none" stroke={P.green} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx={toX(coords[0].longitude)} cy={toY(coords[0].latitude)} r={6} fill={P.teal} />
+      <Circle cx={toX(last.longitude)} cy={toY(last.latitude)} r={8} fill={P.green} />
+      <Circle cx={toX(last.longitude)} cy={toY(last.latitude)} r={14} fill={P.green + '33'} />
     </Svg>
   );
 }
-
 const rm = StyleSheet.create({
   container: { borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
 });
@@ -107,27 +122,52 @@ function PaceChart({ paces, isDark }: { paces: number[]; isDark: boolean }) {
 
   return (
     <Svg width={W} height={H}>
-      <Polyline points={points} fill="none" stroke={Colors.primary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Polyline points={points} fill="none" stroke={P.green} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
 
-// ─── Tarjeta de métrica grande ────────────────────────────────────────────────
+// ─── Métrica de rendimiento (icono circular + valor + unidad + label) ─────────
+function PerfMetric({ icon, value, unit, label, color }: {
+  icon: string; value: string; unit: string; label: string; color: string;
+}) {
+  return (
+    <View style={pm.cell}>
+      <View style={[pm.iconCircle, { borderColor: color + '40', backgroundColor: color + '12' }]}>
+        <Text style={{ fontSize: 18 }}>{icon}</Text>
+      </View>
+      <Text style={[pm.value, { color }]}>{value}</Text>
+      <Text style={pm.unit}>{unit}</Text>
+      <Text style={pm.label}>{label}</Text>
+    </View>
+  );
+}
+const pm = StyleSheet.create({
+  cell: { flex: 1, alignItems: 'center', paddingVertical: 16, gap: 4 },
+  iconCircle: {
+    width: 44, height: 44, borderRadius: 22,
+    borderWidth: 1.5, alignItems: 'center', justifyContent: 'center',
+    marginBottom: 6,
+  },
+  value: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
+  unit: { fontSize: 11, color: P.textSub },
+  label: { fontSize: 11, color: P.textSub, fontWeight: '600' },
+});
+
+// ─── BigMetric (para pantalla en marcha) ─────────────────────────────────────
 function BigMetric({ value, label, unit, color, isDark }: {
   value: string; label: string; unit: string; color: string; isDark: boolean;
 }) {
   const bg = isDark ? '#1E293B' : '#FFFFFF';
-  const text = isDark ? '#F1F5F9' : '#1A1A1A';
-  const sub = isDark ? '#94A3B8' : '#64748B';
+  const sub = isDark ? '#94A3B8' : P.textSub;
   return (
-    <View style={[bm.card, { backgroundColor: bg, borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
+    <View style={[bm.card, { backgroundColor: bg, borderColor: isDark ? '#334155' : P.border }]}>
       <Text style={[bm.value, { color }]}>{value}</Text>
       <Text style={[bm.unit, { color: sub }]}>{unit}</Text>
       <Text style={[bm.label, { color: sub }]}>{label}</Text>
     </View>
   );
 }
-
 const bm = StyleSheet.create({
   card: { flex: 1, borderRadius: 16, borderWidth: 0.5, padding: 16, alignItems: 'center', gap: 2 },
   value: { fontSize: 28, fontWeight: '800', letterSpacing: -1 },
@@ -140,31 +180,29 @@ export default function ActivityScreen() {
   const isDark = useColorScheme() === 'dark';
 
   const C = {
-    bg:      isDark ? '#0F172A' : '#F5F5F5',
+    bg:      isDark ? '#0F172A' : P.bgCream,
     surface: isDark ? '#1E293B' : '#FFFFFF',
-    text:    isDark ? '#F1F5F9' : '#1A1A1A',
-    textSub: isDark ? '#94A3B8' : '#64748B',
-    border:  isDark ? '#334155' : '#E2E8F0',
-    error:   '#EF4444',
+    text:    isDark ? '#F1F5F9' : P.textMain,
+    textSub: isDark ? '#94A3B8' : P.textSub,
+    border:  isDark ? '#334155' : P.border,
   };
 
-  const [state, setState] = useState<ActivityState>('idle');
-  const [elapsed, setElapsed] = useState(0);
-  const [distance, setDistance] = useState(0);
-  const [speed, setSpeed] = useState(0);       // m/s
-  const [coords, setCoords] = useState<Coord[]>([]);
-  const [paceHistory, setPaceHistory] = useState<number[]>([]);
+  const [state, setState]               = useState<ActivityState>('idle');
+  const [elapsed, setElapsed]           = useState(0);
+  const [distance, setDistance]         = useState(0);
+  const [speed, setSpeed]               = useState(0);
+  const [coords, setCoords]             = useState<Coord[]>([]);
+  const [paceHistory, setPaceHistory]   = useState<number[]>([]);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
   const locationSub = useRef<Location.LocationSubscription | null>(null);
-  const lastCoord = useRef<Coord | null>(null);
-  const lastTime = useRef<number>(0);
+  const lastCoord   = useRef<Coord | null>(null);
+  const lastTime    = useRef<number>(0);
 
-  // Métricas derivadas
-  const speedKmh = speed * 3.6;
+  const speedKmh     = speed * 3.6;
   const paceSecPerKm = speed > 0.5 ? 1000 / speed : 0;
-  const distanceKm = distance / 1000;
+  const distanceKm   = distance / 1000;
 
   useEffect(() => {
     requestPermissions();
@@ -172,31 +210,20 @@ export default function ActivityScreen() {
   }, []);
 
   const requestPermissions = async () => {
-    if (Platform.OS === 'web') {
-      setHasPermission(true);
-      return;
-    }
+    if (Platform.OS === 'web') { setHasPermission(true); return; }
     const { status } = await Location.requestForegroundPermissionsAsync();
     setHasPermission(status === 'granted');
-    if (status !== 'granted') {
+    if (status !== 'granted')
       Alert.alert('Permiso necesario', 'Necesitamos acceso a tu ubicación para rastrear la actividad.');
-    }
   };
 
   const startTracking = async () => {
     if (Platform.OS === 'web') {
-      // Simulación en web
-      setState('running');
-      startTimer();
-      simulateMovement();
-      return;
+      setState('running'); startTimer(); simulateMovement(); return;
     }
-
     if (!hasPermission) { await requestPermissions(); return; }
-
     setState('running');
     startTimer();
-
     locationSub.current = await Location.watchPositionAsync(
       { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 2 },
       (loc) => {
@@ -204,7 +231,6 @@ export default function ActivityScreen() {
         const now = Date.now();
         const spd = loc.coords.speed ?? 0;
         setSpeed(Math.max(spd, 0));
-
         if (lastCoord.current) {
           const d = haversine(lastCoord.current, newCoord);
           if (d > 0.5) {
@@ -213,16 +239,13 @@ export default function ActivityScreen() {
             const pace = d > 0 ? (now - lastTime.current) / 1000 / (d / 1000) : 0;
             if (pace > 0 && pace < 1800) setPaceHistory(prev => [...prev.slice(-30), pace]);
           }
-        } else {
-          setCoords([newCoord]);
-        }
+        } else { setCoords([newCoord]); }
         lastCoord.current = newCoord;
         lastTime.current = now;
       }
     );
   };
 
-  // Simulación de movimiento para web
   const simulateMovement = () => {
     let baseLat = 40.4168, baseLon = -3.7038, step = 0;
     const sim = setInterval(() => {
@@ -259,27 +282,21 @@ export default function ActivityScreen() {
     locationSub.current?.remove();
   };
 
-  const finishActivity = () => {
-    stopTracking();
-    setState('finished');
-  };
+  const finishActivity = () => { stopTracking(); setState('finished'); };
 
   const resetActivity = () => {
     stopTracking();
     setState('idle');
-    setElapsed(0);
-    setDistance(0);
-    setSpeed(0);
-    setCoords([]);
-    setPaceHistory([]);
+    setElapsed(0); setDistance(0); setSpeed(0);
+    setCoords([]); setPaceHistory([]);
     lastCoord.current = null;
   };
 
-  // ─── PANTALLA RESUMEN FINAL ───────────────────────────────────────────────
+  // ─── RESUMEN FINAL ────────────────────────────────────────────────────────
   if (state === 'finished') {
-    const avgPace = elapsed > 0 && distance > 0 ? elapsed / (distance / 1000) : 0;
+    const avgPace  = elapsed > 0 && distance > 0 ? elapsed / (distance / 1000) : 0;
     const avgSpeed = elapsed > 0 ? (distance / elapsed) * 3.6 : 0;
-    const kcal = Math.round(distance * 0.06);
+    const kcal     = Math.round(distance * 0.06);
 
     return (
       <SafeAreaView style={[s.container, { backgroundColor: C.bg }]}>
@@ -293,31 +310,31 @@ export default function ActivityScreen() {
           <View style={[s.summaryCard, { backgroundColor: C.surface, borderColor: C.border }]}>
             <View style={s.summaryRow}>
               <View style={s.summaryItem}>
-                <Text style={[s.summaryVal, { color: Colors.primary }]}>{formatTime(elapsed)}</Text>
+                <Text style={[s.summaryVal, { color: P.green }]}>{formatTime(elapsed)}</Text>
                 <Text style={[s.summaryLbl, { color: C.textSub }]}>Tiempo</Text>
               </View>
               <View style={[s.summaryDivider, { backgroundColor: C.border }]} />
               <View style={s.summaryItem}>
-                <Text style={[s.summaryVal, { color: '#6366F1' }]}>{distanceKm.toFixed(2)}</Text>
+                <Text style={[s.summaryVal, { color: P.purple }]}>{distanceKm.toFixed(2)}</Text>
                 <Text style={[s.summaryLbl, { color: C.textSub }]}>km</Text>
               </View>
             </View>
             <View style={[s.summaryDividerH, { backgroundColor: C.border }]} />
             <View style={s.summaryRow}>
               <View style={s.summaryItem}>
-                <Text style={[s.summaryVal, { color: '#F59E0B' }]}>{formatPace(avgPace)}</Text>
+                <Text style={[s.summaryVal, { color: P.amber }]}>{formatPace(avgPace)}</Text>
                 <Text style={[s.summaryLbl, { color: C.textSub }]}>Ritmo /km</Text>
               </View>
               <View style={[s.summaryDivider, { backgroundColor: C.border }]} />
               <View style={s.summaryItem}>
-                <Text style={[s.summaryVal, { color: '#EF4444' }]}>{kcal}</Text>
+                <Text style={[s.summaryVal, { color: P.red }]}>{kcal}</Text>
                 <Text style={[s.summaryLbl, { color: C.textSub }]}>kcal</Text>
               </View>
             </View>
             <View style={[s.summaryDividerH, { backgroundColor: C.border }]} />
             <View style={s.summaryRow}>
               <View style={s.summaryItem}>
-                <Text style={[s.summaryVal, { color: '#10B981' }]}>{avgSpeed.toFixed(1)}</Text>
+                <Text style={[s.summaryVal, { color: P.teal }]}>{avgSpeed.toFixed(1)}</Text>
                 <Text style={[s.summaryLbl, { color: C.textSub }]}>Vel. media km/h</Text>
               </View>
               <View style={[s.summaryDivider, { backgroundColor: C.border }]} />
@@ -342,8 +359,8 @@ export default function ActivityScreen() {
             </View>
           )}
 
-          <TouchableOpacity style={[s.btnPrimary, { backgroundColor: Colors.primary }]} onPress={resetActivity}>
-            <Text style={s.btnPrimaryText}>Nueva actividad</Text>
+          <TouchableOpacity style={[s.startBtn, { backgroundColor: P.green }]} onPress={resetActivity}>
+            <Text style={s.startBtnText}>Nueva actividad</Text>
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
@@ -354,61 +371,149 @@ export default function ActivityScreen() {
   if (state === 'idle') {
     return (
       <SafeAreaView style={[s.container, { backgroundColor: C.bg }]}>
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60, gap: 20 }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
 
-          <View style={s.idleHeader}>
-            <Text style={[s.idleTitle, { color: C.text }]}>Actividad</Text>
-            <Text style={[s.idleSub, { color: C.textSub }]}>Registra tu carrera, caminata o entrenamiento</Text>
-          </View>
-
-          {/* Tipos de actividad */}
-          <View style={s.activityTypes}>
-            {[
-              { icon: '🏃', label: 'Correr', color: Colors.primary },
-              { icon: '🚶', label: 'Caminar', color: '#10B981' },
-              { icon: '🚴', label: 'Bici', color: '#6366F1' },
-              { icon: '🏊', label: 'Nadar', color: '#0EA5E9' },
-            ].map((t, i) => (
-              <TouchableOpacity key={i} style={[s.typeCard, { backgroundColor: C.surface, borderColor: C.border }]}>
-                <Text style={{ fontSize: 28 }}>{t.icon}</Text>
-                <Text style={[s.typeLabel, { color: t.color }]}>{t.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Stats recientes simulados */}
-          <View style={[s.statsCard, { backgroundColor: C.surface, borderColor: C.border }]}>
-            <Text style={[s.sectionTitle, { color: C.text }]}>📊 Esta semana</Text>
-            <View style={s.statsRow}>
-              <View style={s.statItem}>
-                <Text style={[s.statVal, { color: Colors.primary }]}>0</Text>
-                <Text style={[s.statLbl, { color: C.textSub }]}>actividades</Text>
+          {/* ── HEADER con fondoInicio.png ── */}
+          <ImageBackground
+            source={require('../../assets/images/fondoInicio.png')}
+            style={s.header}
+            resizeMode="cover"
+          >
+            <View style={s.headerOverlay} pointerEvents="none" />
+            <View style={s.headerRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.headerTitle, { color: C.text }]}>Actividad</Text>
+                <Text style={[s.headerSub, { color: C.textSub }]}>
+                  Registra tu carrera, caminata o entrenamiento
+                </Text>
               </View>
-              <View style={s.statItem}>
-                <Text style={[s.statVal, { color: '#6366F1' }]}>0.00</Text>
-                <Text style={[s.statLbl, { color: C.textSub }]}>km totales</Text>
-              </View>
-              <View style={s.statItem}>
-                <Text style={[s.statVal, { color: '#F59E0B' }]}>0</Text>
-                <Text style={[s.statLbl, { color: C.textSub }]}>kcal</Text>
+              {/* Icono hoja círculo verde */}
+              <View style={s.headerIconCircle}>
+                <Text style={{ fontSize: 22 }}>🌿</Text>
               </View>
             </View>
-          </View>
+          </ImageBackground>
 
-          {Platform.OS === 'web' && (
-            <View style={[s.webNote, { backgroundColor: '#F59E0B18', borderColor: '#F59E0B44' }]}>
-              <Text style={{ color: '#F59E0B', fontSize: 12, textAlign: 'center' }}>
-                ⚠️ En web el GPS está simulado. El tracking real funciona en dispositivo físico.
-              </Text>
+          <View style={{ padding: 16, gap: 14 }}>
+
+            {/* ── Esta semana ── */}
+            <View style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>
+              <View style={s.cardHeader}>
+                <View style={[s.cardIconBox, { backgroundColor: P.greenLt }]}>
+                  <Text style={{ fontSize: 16 }}>📊</Text>
+                </View>
+                <Text style={[s.cardTitle, { color: C.text }]}>Esta semana</Text>
+              </View>
+              {/* Divisor */}
+              <View style={[s.hDivider, { backgroundColor: C.border }]} />
+              <View style={s.weekStatsRow}>
+                <View style={s.weekStatItem}>
+                  <Text style={[s.weekStatVal, { color: P.green }]}>0</Text>
+                  <Text style={[s.weekStatLbl, { color: C.textSub }]}>actividades</Text>
+                </View>
+                <View style={[s.vDivider, { backgroundColor: C.border }]} />
+                <View style={s.weekStatItem}>
+                  <Text style={[s.weekStatVal, { color: P.purple }]}>0.00</Text>
+                  <Text style={[s.weekStatLbl, { color: C.textSub }]}>km totales</Text>
+                </View>
+                <View style={[s.vDivider, { backgroundColor: C.border }]} />
+                <View style={s.weekStatItem}>
+                  <Text style={[s.weekStatVal, { color: P.amber }]}>0</Text>
+                  <Text style={[s.weekStatLbl, { color: C.textSub }]}>kcal</Text>
+                </View>
+              </View>
             </View>
-          )}
 
-          {/* Botón iniciar */}
-          <TouchableOpacity style={[s.startBtn, { backgroundColor: Colors.primary }]} onPress={startTracking}>
-            <Text style={{ fontSize: 36 }}>▶</Text>
-            <Text style={s.startBtnText}>Iniciar actividad</Text>
-          </TouchableOpacity>
+            {/* ── Aviso web ── */}
+            {Platform.OS === 'web' && (
+              <View style={s.webNote}>
+                <View style={s.webNoteIcon}>
+                  <Text style={{ fontSize: 16 }}>⚠️</Text>
+                </View>
+                <Text style={s.webNoteText}>
+                  En web el GPS está simulado.{'\n'}El tracking real funciona en dispositivo físico.
+                </Text>
+              </View>
+            )}
 
+            {/* ── Botón iniciar ── */}
+            <TouchableOpacity
+              style={s.startBtn}
+              onPress={startTracking}
+              activeOpacity={0.85}
+            >
+              <View style={s.startBtnPlayCircle}>
+                <Text style={{ fontSize: 20, color: P.green }}>▶</Text>
+              </View>
+              <Text style={s.startBtnText}>Iniciar actividad</Text>
+            </TouchableOpacity>
+
+            {/* ── Resumen de rendimiento ── */}
+            <View style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>
+              <View style={[s.cardHeader, { justifyContent: 'space-between' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={[s.cardIconBox, { backgroundColor: P.greenLt }]}>
+                    <Text style={{ fontSize: 16 }}>📈</Text>
+                  </View>
+                  <Text style={[s.cardTitle, { color: C.text }]}>Resumen de rendimiento</Text>
+                </View>
+                <TouchableOpacity style={[s.periodBtn, { borderColor: C.border }]}>
+                  <Text style={[s.periodBtnText, { color: C.textSub }]}>Esta semana</Text>
+                  <Text style={{ color: C.textSub, fontSize: 11 }}>▾</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={[s.hDivider, { backgroundColor: C.border }]} />
+
+              {/* Fila 1: Distancia, Velocidad media, Tiempo total */}
+              <View style={s.perfRow}>
+                <PerfMetric icon="📍" value="0.00" unit="km" label="Distancia" color={P.green} />
+                <View style={[s.vDivider, { backgroundColor: C.border, alignSelf: 'stretch' }]} />
+                <PerfMetric icon="🏎️" value="0.0" unit="km/h" label="Velocidad media" color={P.green} />
+                <View style={[s.vDivider, { backgroundColor: C.border, alignSelf: 'stretch' }]} />
+                <PerfMetric icon="⏱️" value="00:00" unit="h" label="Tiempo total" color={P.green} />
+              </View>
+              <View style={[s.hDivider, { backgroundColor: C.border }]} />
+              {/* Fila 2: Ritmo, Calorías, Pasos */}
+              <View style={s.perfRow}>
+                <PerfMetric icon="⏰" value="00:00" unit="min/km" label="Ritmo medio" color={P.green} />
+                <View style={[s.vDivider, { backgroundColor: C.border, alignSelf: 'stretch' }]} />
+                <PerfMetric icon="🔥" value="0" unit="kcal" label="Calorías" color={P.amber} />
+                <View style={[s.vDivider, { backgroundColor: C.border, alignSelf: 'stretch' }]} />
+                <PerfMetric icon="👟" value="0" unit="pasos" label="Pasos totales" color={P.green} />
+              </View>
+            </View>
+
+            {/* ── Actividad reciente ── */}
+            <View style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>
+              <View style={[s.cardHeader, { justifyContent: 'space-between' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={[s.cardIconBox, { backgroundColor: P.greenLt }]}>
+                    <Text style={{ fontSize: 16 }}>📅</Text>
+                  </View>
+                  <Text style={[s.cardTitle, { color: C.text }]}>Actividad reciente</Text>
+                </View>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={{ fontSize: 13, color: P.green, fontWeight: '700' }}>Ver todas</Text>
+                  <Text style={{ fontSize: 14, color: P.green }}>›</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={[s.hDivider, { backgroundColor: C.border }]} />
+
+              {/* Estado vacío */}
+              <View style={s.emptyActivity}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.emptyTitle, { color: C.text }]}>
+                    Aún no tienes actividades registradas.
+                  </Text>
+                  <Text style={[s.emptySub, { color: C.textSub }]}>
+                    ¡Empieza tu primera actividad!
+                  </Text>
+                </View>
+                <Text style={s.emptyShoe}>👟</Text>
+              </View>
+            </View>
+
+          </View>
         </ScrollView>
       </SafeAreaView>
     );
@@ -421,7 +526,7 @@ export default function ActivityScreen() {
 
         {/* Estado */}
         <View style={s.statusRow}>
-          <View style={[s.statusDot, { backgroundColor: state === 'running' ? '#10B981' : '#F59E0B' }]} />
+          <View style={[s.statusDot, { backgroundColor: state === 'running' ? P.teal : P.amber }]} />
           <Text style={[s.statusText, { color: C.textSub }]}>
             {state === 'running' ? 'En marcha' : 'En pausa'}
           </Text>
@@ -433,14 +538,14 @@ export default function ActivityScreen() {
           <Text style={[s.timerLabel, { color: C.textSub }]}>tiempo transcurrido</Text>
         </View>
 
-        {/* Métricas principales */}
+        {/* Métricas */}
         <View style={s.metricsRow}>
-          <BigMetric value={distanceKm.toFixed(2)} label="Distancia" unit="km" color="#6366F1" isDark={isDark} />
-          <BigMetric value={speedKmh.toFixed(1)} label="Velocidad" unit="km/h" color={Colors.primary} isDark={isDark} />
+          <BigMetric value={distanceKm.toFixed(2)} label="Distancia" unit="km" color={P.purple} isDark={isDark} />
+          <BigMetric value={speedKmh.toFixed(1)} label="Velocidad" unit="km/h" color={P.green} isDark={isDark} />
         </View>
         <View style={s.metricsRow}>
-          <BigMetric value={formatPace(paceSecPerKm)} label="Ritmo" unit="min/km" color="#F59E0B" isDark={isDark} />
-          <BigMetric value={String(Math.round(distance * 0.06))} label="Calorías" unit="kcal" color="#EF4444" isDark={isDark} />
+          <BigMetric value={formatPace(paceSecPerKm)} label="Ritmo" unit="min/km" color={P.amber} isDark={isDark} />
+          <BigMetric value={String(Math.round(distance * 0.06))} label="Calorías" unit="kcal" color={P.red} isDark={isDark} />
         </View>
 
         {/* Mapa */}
@@ -449,7 +554,6 @@ export default function ActivityScreen() {
           <RouteMap coords={coords} isDark={isDark} />
         </View>
 
-        {/* Gráfica de ritmo */}
         {paceHistory.length >= 2 && (
           <View style={[s.mapCard, { backgroundColor: C.surface, borderColor: C.border }]}>
             <Text style={[s.sectionTitle, { color: C.text, marginBottom: 8 }]}>📈 Ritmo</Text>
@@ -460,19 +564,28 @@ export default function ActivityScreen() {
         {/* Controles */}
         <View style={s.controls}>
           {state === 'running' ? (
-            <TouchableOpacity style={[s.controlBtn, { backgroundColor: '#F59E0B18', borderColor: '#F59E0B' }]} onPress={pauseTracking}>
+            <TouchableOpacity
+              style={[s.controlBtn, { backgroundColor: P.amber + '18', borderColor: P.amber }]}
+              onPress={pauseTracking}
+            >
               <Text style={{ fontSize: 28 }}>⏸</Text>
-              <Text style={[s.controlLabel, { color: '#F59E0B' }]}>Pausar</Text>
+              <Text style={[s.controlLabel, { color: P.amber }]}>Pausar</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={[s.controlBtn, { backgroundColor: Colors.primary + '18', borderColor: Colors.primary }]} onPress={resumeTracking}>
+            <TouchableOpacity
+              style={[s.controlBtn, { backgroundColor: P.green + '18', borderColor: P.green }]}
+              onPress={resumeTracking}
+            >
               <Text style={{ fontSize: 28 }}>▶️</Text>
-              <Text style={[s.controlLabel, { color: Colors.primary }]}>Continuar</Text>
+              <Text style={[s.controlLabel, { color: P.green }]}>Continuar</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={[s.controlBtn, { backgroundColor: '#EF444418', borderColor: '#EF4444' }]} onPress={finishActivity}>
+          <TouchableOpacity
+            style={[s.controlBtn, { backgroundColor: P.red + '18', borderColor: P.red }]}
+            onPress={finishActivity}
+          >
             <Text style={{ fontSize: 28 }}>⏹</Text>
-            <Text style={[s.controlLabel, { color: '#EF4444' }]}>Terminar</Text>
+            <Text style={[s.controlLabel, { color: P.red }]}>Terminar</Text>
           </TouchableOpacity>
         </View>
 
@@ -484,34 +597,180 @@ export default function ActivityScreen() {
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   container: { flex: 1 },
-  // Idle
-  idleHeader: { alignItems: 'center', paddingVertical: 20, gap: 8 },
-  idleTitle: { fontSize: 32, fontWeight: '800' },
-  idleSub: { fontSize: 14, textAlign: 'center' },
-  activityTypes: { flexDirection: 'row', gap: 10 },
-  typeCard: { flex: 1, alignItems: 'center', padding: 14, borderRadius: 16, borderWidth: 0.5, gap: 6 },
-  typeLabel: { fontSize: 11, fontWeight: '700' },
-  statsCard: { borderRadius: 16, borderWidth: 0.5, padding: 16, gap: 12 },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  statItem: { alignItems: 'center', gap: 4 },
-  statVal: { fontSize: 24, fontWeight: '800' },
-  statLbl: { fontSize: 11 },
-  startBtn: { borderRadius: 20, padding: 20, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 12 },
-  startBtnText: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  webNote: { borderRadius: 12, borderWidth: 1, padding: 12 },
-  // Running
+
+  // ── Header ──
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 20,
+    overflow: 'hidden',
+  },
+  headerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(242, 245, 238, 0.75)',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  headerTitle: {
+    fontSize: 36,
+    fontWeight: '800',
+    letterSpacing: -0.8,
+    lineHeight: 40,
+  },
+  headerSub: { fontSize: 13, marginTop: 4, lineHeight: 18 },
+  headerIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: P.greenLt,
+    borderWidth: 1.5,
+    borderColor: P.green + '30',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  // ── Cards genéricas ──
+  card: {
+    borderRadius: 18,
+    borderWidth: 0.5,
+    overflow: 'hidden',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  cardIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardTitle: { fontSize: 15, fontWeight: '700' },
+
+  // ── Divisores ──
+  hDivider: { height: 0.5 },
+  vDivider: { width: 0.5 },
+
+  // ── Esta semana ──
+  weekStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  weekStatItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 18,
+    gap: 4,
+  },
+  weekStatVal: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  weekStatLbl: { fontSize: 11, fontWeight: '600' },
+
+  // ── Aviso web ──
+  webNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: P.amber + '12',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: P.amber + '40',
+    padding: 14,
+  },
+  webNoteIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: P.amber + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  webNoteText: { flex: 1, fontSize: 13, color: '#92400E', lineHeight: 18 },
+
+  // ── Botón iniciar ──
+  startBtn: {
+    backgroundColor: P.green,
+    borderRadius: 18,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+  },
+  startBtnPlayCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  startBtnText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+
+  // ── Selector periodo ──
+  periodBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  periodBtnText: { fontSize: 12, fontWeight: '500' },
+
+  // ── Fila de métricas de rendimiento ──
+  perfRow: { flexDirection: 'row', alignItems: 'stretch' },
+
+  // ── Actividad reciente vacía ──
+  emptyActivity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    gap: 12,
+  },
+  emptyTitle: { fontSize: 14, fontWeight: '700', lineHeight: 20 },
+  emptySub: { fontSize: 12, marginTop: 4 },
+  emptyShoe: { fontSize: 52, opacity: 0.25 },
+
+  // ── En marcha ──
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { fontSize: 13, fontWeight: '600' },
-  timerCard: { borderRadius: 20, borderWidth: 0.5, padding: 24, alignItems: 'center', gap: 4 },
-  timerText: { fontSize: 56, fontWeight: '800', letterSpacing: -2, fontVariant: ['tabular-nums'] },
+  timerCard: {
+    borderRadius: 20, borderWidth: 0.5,
+    padding: 24, alignItems: 'center', gap: 4,
+  },
+  timerText: {
+    fontSize: 56, fontWeight: '800',
+    letterSpacing: -2, fontVariant: ['tabular-nums'],
+  },
   timerLabel: { fontSize: 12 },
   metricsRow: { flexDirection: 'row', gap: 12 },
   mapCard: { borderRadius: 16, borderWidth: 0.5, padding: 16 },
   controls: { flexDirection: 'row', gap: 12 },
-  controlBtn: { flex: 1, borderRadius: 16, borderWidth: 1.5, padding: 20, alignItems: 'center', gap: 8 },
+  controlBtn: {
+    flex: 1, borderRadius: 16, borderWidth: 1.5,
+    padding: 20, alignItems: 'center', gap: 8,
+  },
   controlLabel: { fontSize: 13, fontWeight: '700' },
-  // Summary
+
+  // ── Resumen final ──
   summaryHeader: { alignItems: 'center', paddingVertical: 20, gap: 8 },
   summaryTitle: { fontSize: 24, fontWeight: '800' },
   summarySub: { fontSize: 14 },
@@ -523,6 +782,4 @@ const s = StyleSheet.create({
   summaryDivider: { width: 0.5 },
   summaryDividerH: { height: 0.5 },
   sectionTitle: { fontSize: 15, fontWeight: '700' },
-  btnPrimary: { borderRadius: 14, padding: 16, alignItems: 'center' },
-  btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });
