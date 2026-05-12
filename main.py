@@ -3,8 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from database import engine, Base
 from routes import assignments, users, exercises, routines, auth
-from routes.chat import chat_bp
-from routes.calls import calls_bp
+# from routes.chat import chat_bp
+# from routes.calls import calls_bp
 
 
 # =========================
@@ -39,8 +39,8 @@ app.include_router(users.router)
 app.include_router(exercises.router)
 app.include_router(routines.router)
 app.include_router(assignments.router)
-app.include_router(chat_bp)
-app.include_router(calls_bp)
+# app.include_router(chat_bp)
+# app.include_router(calls_bp)
 
 
 # =========================

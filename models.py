@@ -18,7 +18,9 @@ class User(Base):
     weight_kg        = Column(Float, nullable=True)
     hashed_password  = Column(String, nullable=False)
     role             = Column(String, default="user", nullable=False)
-
+    is_verified      = Column(Boolean, default=False)
+    verification_token = Column(String, nullable=True)
+    
     routines             = relationship("Routine", back_populates="user")
     assignments_received = relationship("Assignment", foreign_keys="Assignment.assigned_to_id", back_populates="assigned_to")
     assignments_sent     = relationship("Assignment", foreign_keys="Assignment.assigned_by_id", back_populates="assigned_by")

@@ -55,8 +55,11 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await register(name.trim(), email.trim(), password);
-      await login(email.trim(), password);
-      router.replace('/(tabs)/inicio');
+        Alert.alert(
+          '¡Revisa tu correo! 📧',
+          'Te hemos enviado un enlace de confirmación. Confírmalo antes de iniciar sesión.',
+          [{ text: 'OK', onPress: () => router.replace('/auth/login') }]
+        );
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
