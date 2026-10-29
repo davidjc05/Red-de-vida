@@ -16,6 +16,7 @@ from models import (
 
 from schemas import AssignmentCreate, AssignmentOut
 from auth.auth import get_current_user
+from permissions import get_routine_or_403
 
 router = APIRouter(prefix="/assignments", tags=["assignments"])
 
@@ -239,7 +240,7 @@ def sent_assignments(
 def get_assignments_by_routine(
     routine_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    routine: Routine = Depends(get_routine_or_403),  # 404/403 si no es admin ni dueño
 ):
     assignments = db.query(Assignment).filter(
         Assignment.routine_id == routine_id

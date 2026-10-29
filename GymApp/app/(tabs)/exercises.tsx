@@ -342,7 +342,6 @@ export default function ExercisesScreen() {
   useEffect(() => {
     load('Todos');
     getRole().then(role => {
-      console.log("ROLE RAW:", role);
       setIsAdmin(role?.toLowerCase().trim() === 'admin');
     });
   }, []);
@@ -371,7 +370,6 @@ export default function ExercisesScreen() {
   };
 
   const handleDelete = async (exercise: Exercise) => {
-    console.log("PULSADO BORRAR:", exercise.id);
 
     const confirmar =
       Platform.OS === 'web'
@@ -385,7 +383,6 @@ export default function ExercisesScreen() {
         const { API_URL, getToken } = require('../../services/api');
         const token = await getToken();
 
-        console.log("TOKEN DELETE:", token);
 
         const res = await fetch(`${API_URL}/exercises/${exercise.id}`, {
           method: 'DELETE',
@@ -397,8 +394,6 @@ export default function ExercisesScreen() {
 
         const text = await res.text();
 
-        console.log("DELETE STATUS:", res.status);
-        console.log("DELETE RESPONSE:", text);
 
         if (!res.ok) {
           throw new Error(text || "Error al eliminar");

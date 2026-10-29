@@ -16,7 +16,11 @@ router = APIRouter(prefix="/exercises", tags=["🏋️ Ejercicios"])
 
 
 @router.post("", response_model=ExerciseOut, status_code=201)
-def create_exercise(exercise: ExerciseCreate, db: Session = Depends(get_db)):
+def create_exercise(
+    exercise: ExerciseCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
     """Crea un nuevo ejercicio."""
     db_exercise = Exercise(**exercise.model_dump())
     db.add(db_exercise)
@@ -58,7 +62,12 @@ def delete_exercise(
     db.commit()
 
 @router.patch("/{exercise_id}", response_model=ExerciseOut)
-def update_exercise(exercise_id: int, data: ExerciseUpdate, db: Session = Depends(get_db)):
+def update_exercise(
+    exercise_id: int,
+    data: ExerciseUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_admin),
+):
     """Actualiza un ejercicio"""
     exercise = db.query(Exercise).filter(Exercise.id == exercise_id).first()
 

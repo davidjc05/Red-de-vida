@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from database import get_db
 from models import Routine, User, RoutineExercise, Block, BlockExercise
 from schemas import RoutineCreate, RoutineUpdate
-from permissions import require_admin
+from permissions import require_admin, get_routine_or_403
 from auth.auth import get_current_user
 
 router = APIRouter(prefix="/routines", tags=["Rutinas"])
@@ -261,7 +261,7 @@ def update_routine(
 def clear_routine_exercises(
     routine_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    routine: Routine = Depends(get_routine_or_403),  # 404/403 si no es admin ni dueño
 ):
     blocks = db.query(Block).filter(Block.routine_id == routine_id).all()
 

@@ -92,7 +92,6 @@ export async function login(email: string, password: string) {
 
   const text = await res.text();
 
-  console.log("LOGIN RAW RESPONSE:", text);
 
   let data;
 
