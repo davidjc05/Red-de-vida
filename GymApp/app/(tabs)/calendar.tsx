@@ -9,6 +9,10 @@ import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { getMyAssignments, confirmWorkout, saveWorkoutLog } from '../../services/api';
 import { Colors } from '../../constants/colors';
 
+const FC  = 'BarlowCondensed-ExtraBold';
+const FB  = 'Barlow-Regular';
+const FBB = 'Barlow-Bold';
+
 const DAY_NAMES_SHORT = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const DAY_NAMES_FULL  = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 const MONTH_NAMES     = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -86,11 +90,11 @@ export default function CalendarScreen() {
   const [logs, setLogs] = useState<any>({});
 
   const C = {
-    bg:      isDark ? '#0F172A' : '#FFFFFF',
-    surface: isDark ? '#1E293B' : '#F8FAFC',
-    text:    isDark ? '#F1F5F9' : '#1A1A1A',
-    sub:     isDark ? '#94A3B8' : '#64748B',
-    border:  isDark ? '#1E2D3D' : '#E5E7EB',
+    bg:      isDark ? '#111111' : '#F2F5EE',
+    surface: isDark ? '#1A1A1A' : '#FFFFFF',
+    text:    isDark ? '#F2F2F0' : '#1A1A1A',
+    sub:     isDark ? '#A1A1A0' : '#5F5E5A',
+    border:  isDark ? '#2A2A2A' : '#E3E6DD',
   };
 
   useEffect(() => {
@@ -170,8 +174,7 @@ export default function CalendarScreen() {
                   style={[
                     s.dayCell,
                     { borderRightColor: C.border },
-                    isToday && !isSelected && { backgroundColor: Colors.primaryLight },
-                    isSelected && { backgroundColor: Colors.primaryLight },
+                    isSelected && { backgroundColor: isDark ? Colors.primary + '26' : Colors.primaryLight },
                   ]}
                   onPress={() => setSelectedDate(day)}
                   activeOpacity={0.7}
@@ -186,14 +189,14 @@ export default function CalendarScreen() {
                         s.dayNum,
                         {
                           color: !isCurrentMonth
-                            ? C.border
+                            ? C.sub + '88'
                             : isSelected
                               ? '#fff'
                               : isToday
                                 ? Colors.primary
                                 : C.text,
                         },
-                        (isToday || isSelected) && { fontWeight: '700' },
+                        (isToday || isSelected) && { fontFamily: FBB },
                       ]}>
                         {day.getDate()}
                       </Text>
@@ -205,14 +208,30 @@ export default function CalendarScreen() {
                         key={ev.id}
                         style={[
                           s.eventChip,
-                          { backgroundColor: ev.status === 'confirmed' ? Colors.primary : Colors.primaryDark },
+                          ev.status === 'confirmed'
+                            ? { backgroundColor: Colors.primary }
+                            : ev.status === 'declined'
+                              ? { backgroundColor: C.border }
+                              : { borderStyle: 'dashed', borderColor: Colors.primary },
                         ]}
                         onPress={() => { setSelectedDate(day); setSelectedEvent(ev); }}
                         activeOpacity={0.8}
+                        accessibilityLabel={`${formatTime(ev.start_time)} ${ev.workout?.name ?? 'Entreno'}`}
                       >
-                        <View style={s.eventChipDot} />
-                        <Text style={s.eventChipText} numberOfLines={1}>
-                          {formatTime(ev.start_time)} {ev.workout?.name ?? 'Entreno'}
+                        <Text
+                          style={[
+                            s.eventChipText,
+                            {
+                              color: ev.status === 'confirmed'
+                                ? '#fff'
+                                : ev.status === 'declined'
+                                  ? C.sub
+                                  : Colors.primary,
+                            },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {ev.workout?.name ?? 'Entreno'}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -246,35 +265,31 @@ export default function CalendarScreen() {
     return (
       <Modal transparent animationType="slide" visible onRequestClose={() => setSelectedEvent(null)}>
         <View style={s.modalOverlay}>
-          <View style={[s.eventModal, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
+          <View style={[s.eventModal, { backgroundColor: C.surface }]}>
 
             {/* Handle */}
             <View style={s.modalHandle} />
 
             {/* Header verde */}
             <View style={s.modalHero}>
-              <View style={s.modalHeroIcon}>
-                <Text style={{ fontSize: 22 }}>🏋️</Text>
-              </View>
               <View style={{ flex: 1 }}>
-                <Text style={s.modalHeroTitle} numberOfLines={2}>
+                <Text style={[s.modalHeroTitle, { color: C.text }]} numberOfLines={2}>
                   {selectedEvent.workout?.name ?? 'Entrenamiento'}
                 </Text>
-                <Text style={s.modalHeroTime}>
+                <Text style={[s.modalHeroTime, { color: C.sub }]}>
                   {formatHour(sh)}:{pad(sm)} – {formatHour(eh)}:{pad(em)}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setSelectedEvent(null)} style={s.modalCloseBtn}>
-                <Text style={{ color: Colors.primaryMid, fontSize: 20 }}>✕</Text>
+                <Text style={{ color: C.sub, fontSize: 20 }}>✕</Text>
               </TouchableOpacity>
             </View>
 
             {/* Info fecha */}
-            <View style={[s.modalInfoRow, { backgroundColor: Colors.primaryDark, borderColor: Colors.primaryDark }]}>
-              <Text style={{ fontSize: 16 }}>📅</Text>
+            <View style={[s.modalInfoRow, { backgroundColor: C.bg, borderColor: C.border }]}>
               <View>
-                <Text style={s.modalInfoLabel}>FECHA</Text>
-                <Text style={s.modalInfoValue}>
+                <Text style={[s.modalInfoLabel, { color: C.sub }]}>Fecha</Text>
+                <Text style={[s.modalInfoValue, { color: C.text }]}>
                   {DAY_NAMES_FULL[selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1]},
                   {' '}{selectedDate.getDate()} de {MONTH_NAMES[selectedDate.getMonth()]}
                 </Text>
@@ -292,8 +307,8 @@ export default function CalendarScreen() {
                   selectedEvent.status === 'declined'  && { color: '#991B1B' },
                   selectedEvent.status === 'pending'   && { color: '#92400E' },
                 ]}>
-                  {selectedEvent.status === 'confirmed' ? '✓ Confirmado' :
-                   selectedEvent.status === 'declined'  ? '✗ Rechazado'  : '⏳ Pendiente'}
+                  {selectedEvent.status === 'confirmed' ? 'Confirmado' :
+                   selectedEvent.status === 'declined'  ? 'Rechazado'  : 'Pendiente'}
                 </Text>
               </View>
             </View>
@@ -303,17 +318,13 @@ export default function CalendarScreen() {
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
               {exercises.length === 0 ? (
                 <View style={s.noExercises}>
-                  <Text style={{ fontSize: 32, marginBottom: 8 }}>💪</Text>
                   <Text style={[s.noExercisesTxt, { color: C.sub }]}>Sin ejercicios asignados</Text>
                 </View>
               ) : blocks.map((blockExs, blockIdx) => (
                 <View key={blockIdx} style={s.blockContainer}>
-                  <View style={[s.blockHeader, {
-                    borderLeftColor: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length],
-                    backgroundColor: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length] + '15',
-                  }]}>
+                  <View style={[s.blockHeader, { borderBottomColor: C.border }]}>
                     <View style={[s.blockDot, { backgroundColor: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length] }]} />
-                    <Text style={[s.blockTitle, { color: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length] }]}>
+                    <Text style={[s.blockTitle, { color: C.text }]}>
                       Bloque {blockIdx + 1}
                     </Text>
                     <Text style={[s.blockCount, { color: C.sub }]}>
@@ -323,15 +334,10 @@ export default function CalendarScreen() {
                   {blockExs.map((ex: any, exIdx: number) => (
                     <View
                       key={ex.id ?? exIdx}
-                      style={[s.exRow, {
-                        borderBottomColor: C.border,
-                        backgroundColor: exIdx % 2 === 0
-                          ? 'transparent'
-                          : isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)',
-                      }]}
+                      style={[s.exRow, { borderBottomColor: C.border }]}
                     >
-                      <View style={[s.exNumber, { backgroundColor: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length] + '20' }]}>
-                        <Text style={[s.exNumberText, { color: BLOCK_COLORS[blockIdx % BLOCK_COLORS.length] }]}>{exIdx + 1}</Text>
+                      <View style={s.exNumber}>
+                        <Text style={[s.exNumberText, { color: C.sub }]}>{exIdx + 1}</Text>
                       </View>
                       <View style={s.exInfo}>
                         <Text style={[s.exName, { color: C.text }]}>{ex.name}</Text>
@@ -384,7 +390,7 @@ export default function CalendarScreen() {
                         } catch (e) { console.log(e); }
                       }}
                     >
-                      <Text style={s.btnConfirmText}>✓ Confirmar entreno</Text>
+                      <Text style={s.btnConfirmText}>Confirmar entreno</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={s.btnDecline}
@@ -396,18 +402,18 @@ export default function CalendarScreen() {
                         } catch (e) { console.log(e); }
                       }}
                     >
-                      <Text style={s.btnDeclineText}>✕ No puedo entrenar</Text>
+                      <Text style={s.btnDeclineText}>No puedo entrenar</Text>
                     </TouchableOpacity>
                   </>
                 )}
                 {selectedEvent?.status === 'confirmed' && (
                   <View style={s.statusBanner}>
-                    <Text style={s.statusBannerText}>✅ Entrenamiento confirmado</Text>
+                    <Text style={s.statusBannerText}>Entrenamiento confirmado</Text>
                   </View>
                 )}
                 {selectedEvent?.status === 'declined' && (
                   <View style={[s.statusBanner, { backgroundColor: '#FEE2E2' }]}>
-                    <Text style={[s.statusBannerText, { color: '#991B1B' }]}>❌ Entrenamiento rechazado</Text>
+                    <Text style={[s.statusBannerText, { color: '#991B1B' }]}>Entrenamiento rechazado</Text>
                   </View>
                 )}
               </View>
@@ -430,7 +436,7 @@ export default function CalendarScreen() {
     if (activeWorkout.length === 0) return null;
 
     return (
-      <View style={{ gap: 16 }}>
+      <View style={{ gap: 12 }}>
         {activeWorkout.map((workout) => {
           const exercises = workout.workout?.exercises ?? [];
 
@@ -440,17 +446,13 @@ export default function CalendarScreen() {
               style={[
                 s.activeWorkoutBox,
                 {
-                  backgroundColor: C.bg,
-                  borderTopColor: Colors.primary + '33',
+                  backgroundColor: C.surface,
+                  borderColor: C.border,
                 },
               ]}
             >
               <View style={s.activeWorkoutHeader}>
                 <View style={s.activeWorkoutHeroLeft}>
-                  <View style={s.activeWorkoutIconBox}>
-                    <Text style={{ fontSize: 20 }}>🔥</Text>
-                  </View>
-
                   <View>
                     <Text style={s.activeWorkoutEyebrow}>
                       ENTRENO ACTIVO
@@ -467,9 +469,9 @@ export default function CalendarScreen() {
 
                     <Text
                       style={{
-                        fontSize: 12,
-                        color: Colors.primary,
-                        fontWeight: '600',
+                        fontSize: 13,
+                        color: C.sub,
+                        fontFamily: FB,
                         marginTop: 2,
                       }}
                     >
@@ -505,7 +507,7 @@ export default function CalendarScreen() {
                   style={[
                     s.logCard,
                     {
-                      backgroundColor: C.surface,
+                      backgroundColor: C.bg,
                       borderColor: C.border,
                     },
                   ]}
@@ -523,8 +525,8 @@ export default function CalendarScreen() {
 
                   <View style={s.logInputsRow}>
                     <View style={s.logInputWrap}>
-                      <Text style={s.logInputLabel}>
-                        KG
+                      <Text style={[s.logInputLabel, { color: C.sub }]}>
+                        Kg
                       </Text>
 
                       <TextInput
@@ -548,15 +550,15 @@ export default function CalendarScreen() {
                           {
                             color: C.text,
                             borderColor: C.border,
-                            backgroundColor: C.bg,
+                            backgroundColor: C.surface,
                           },
                         ]}
                       />
                     </View>
 
                     <View style={s.logInputWrap}>
-                      <Text style={s.logInputLabel}>
-                        REPS
+                      <Text style={[s.logInputLabel, { color: C.sub }]}>
+                        Reps
                       </Text>
 
                       <TextInput
@@ -580,7 +582,7 @@ export default function CalendarScreen() {
                           {
                             color: C.text,
                             borderColor: C.border,
-                            backgroundColor: C.bg,
+                            backgroundColor: C.surface,
                           },
                         ]}
                       />
@@ -653,36 +655,36 @@ export default function CalendarScreen() {
     <SafeAreaView style={[s.container, { backgroundColor: C.bg }]} edges={['top']}>
 
       {/* ── Navbar con hero verde ── */}
-      <View style={s.hero}>
+      <View style={[s.hero, { backgroundColor: C.bg }]}>
         <TouchableOpacity onPress={goToday} style={s.todayBtn}>
           <Text style={s.todayBtnText}>Hoy</Text>
         </TouchableOpacity>
         <View style={s.navCenter}>
           <TouchableOpacity onPress={prevMonth} style={s.navBtn}>
-            <ChevronLeft size={20} color={Colors.primaryMid} />
+            <ChevronLeft size={20} color={C.text} />
           </TouchableOpacity>
-          <Text style={s.navTitle}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
+          <Text style={[s.navTitle, { color: C.text }]}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
           <TouchableOpacity onPress={nextMonth} style={s.navBtn}>
-            <ChevronRight size={20} color={Colors.primaryMid} />
+            <ChevronRight size={20} color={C.text} />
           </TouchableOpacity>
         </View>
         <View style={{ width: 60 }} />
 
         {/* Stats mensuales */}
-        <View style={s.heroStats}>
+        <View style={[s.heroStats, { backgroundColor: C.surface, borderColor: C.border }]}>
           <View style={s.heroStatItem}>
-            <Text style={s.heroStatVal}>{monthEvents.length}</Text>
-            <Text style={s.heroStatLbl}>sesiones</Text>
+            <Text style={[s.heroStatVal, { color: C.text }]}>{monthEvents.length}</Text>
+            <Text style={[s.heroStatLbl, { color: C.sub }]}>sesiones</Text>
           </View>
-          <View style={s.heroStatDivider} />
+          <View style={[s.heroStatDivider, { backgroundColor: C.border }]} />
           <View style={s.heroStatItem}>
-            <Text style={s.heroStatVal}>{confirmedCount}</Text>
-            <Text style={s.heroStatLbl}>confirmadas</Text>
+            <Text style={[s.heroStatVal, { color: C.text }]}>{confirmedCount}</Text>
+            <Text style={[s.heroStatLbl, { color: C.sub }]}>confirmadas</Text>
           </View>
-          <View style={s.heroStatDivider} />
+          <View style={[s.heroStatDivider, { backgroundColor: C.border }]} />
           <View style={s.heroStatItem}>
-            <Text style={s.heroStatVal}>{pendingCount}</Text>
-            <Text style={s.heroStatLbl}>pendientes</Text>
+            <Text style={[s.heroStatVal, { color: C.text }]}>{pendingCount}</Text>
+            <Text style={[s.heroStatLbl, { color: C.sub }]}>pendientes</Text>
           </View>
         </View>
       </View>
@@ -701,7 +703,7 @@ export default function CalendarScreen() {
           <MonthGrid />
 
           {activeWorkout.length > 0 && (
-            <View style={s.integratedWorkoutSection}>
+            <View style={[s.integratedWorkoutSection, { backgroundColor: C.bg, borderTopColor: C.border }]}>
               <ActiveWorkoutPanel />
             </View>
           )}
@@ -720,78 +722,84 @@ const s = StyleSheet.create({
   hero: {
     backgroundColor: Colors.primary,
     paddingHorizontal: 16,
-    paddingTop: 10,
+    paddingTop: 8,
     paddingBottom: 14,
   },
   todayBtn: {
     position: 'absolute',
     left: 16,
-    top: 14,
+    top: 8,
+    height: 44,
+    justifyContent: 'center',
+    paddingRight: 12,
     zIndex: 1,
   },
   todayBtnText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: Colors.primaryLight,
+    fontFamily: FBB,
+    color: Colors.primary,
   },
   navCenter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingBottom: 12,
+    gap: 4,
+    paddingBottom: 10,
   },
   navTitle: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 26,
+    fontFamily: FC,
     color: Colors.primaryLight,
     minWidth: 160,
     textAlign: 'center',
   },
-  navBtn: { padding: 4 },
+  navBtn: { padding: 12 },
 
   heroStats: {
     flexDirection: 'row',
     backgroundColor: Colors.primaryDark,
-    borderRadius: 14,
-    padding: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     alignItems: 'center',
   },
   heroStatItem: { flex: 1, alignItems: 'center' },
-  heroStatVal:  { fontSize: 20, fontWeight: '700', color: '#EAF3DE' },
-  heroStatLbl:  { fontSize: 11, color: '#97C459', marginTop: 2 },
+  heroStatVal:  { fontSize: 28, lineHeight: 30, fontFamily: FC, color: '#EAF3DE' },
+  heroStatLbl:  { fontSize: 12, fontFamily: FB, color: '#97C459', marginTop: 2 },
   heroStatDivider: { width: 1, height: 28, backgroundColor: Colors.primary },
 
   // ── Day grid ──
-  dayHeaderRow:  { flexDirection: 'row', borderBottomWidth: 0.5, paddingVertical: 7 },
+  dayHeaderRow:  { flexDirection: 'row', borderBottomWidth: 0.5, paddingVertical: 8 },
   dayHeaderCell: { flex: 1, alignItems: 'center' },
-  dayHeaderText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  weekRow:       { flexDirection: 'row', borderBottomWidth: 0.5, minHeight: 72 },
+  dayHeaderText: { fontSize: 12, fontFamily: FBB },
+  weekRow:       { flexDirection: 'row', borderBottomWidth: 0.5, minHeight: 76 },
   dayCell:       { flex: 1, borderRightWidth: 0.5, paddingTop: 4, paddingHorizontal: 2, paddingBottom: 4 },
-  dayCellHeader: { alignItems: 'center', marginBottom: 2 },
-  dayNumCircle:  { width: 26, height: 26, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
-  dayNum:        { fontSize: 13, fontWeight: '400' },
+  dayCellHeader: { alignItems: 'center', marginBottom: 3 },
+  dayNumCircle:  { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  dayNum:        { fontSize: 14, fontFamily: FB },
 
   eventChips:    { gap: 2 },
   eventChip:     {
     flexDirection: 'row', alignItems: 'center',
-    borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2,
+    borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1,
+    borderWidth: 1, borderColor: 'transparent',
     gap: 3, overflow: 'hidden',
   },
   eventChipDot:  { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.6)', flexShrink: 0 },
-  eventChipText: { fontSize: 9, fontWeight: '600', color: '#fff', flex: 1 },
-  moreText:      { fontSize: 9, paddingHorizontal: 4, marginTop: 1 },
+  eventChipText: { fontSize: 11, fontFamily: FBB, color: '#fff', flex: 1 },
+  moreText:      { fontSize: 11, fontFamily: FB, paddingHorizontal: 4, marginTop: 1 },
 
   loadingBox:  { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { fontSize: 14 },
+  loadingText: { fontSize: 14, fontFamily: FB },
 
   // ── Modal ──
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   eventModal: {
     flex: 1,
     marginTop: 60,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     padding: 20,
     paddingBottom: 36,
   },
@@ -805,10 +813,9 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: Colors.primary,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 14,
+    backgroundColor: 'transparent',
+    padding: 0,
+    marginBottom: 16,
   },
   modalHeroIcon: {
     width: 44, height: 44, borderRadius: 12,
@@ -816,27 +823,26 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   modalHeroTitle: {
-    fontSize: 18, fontWeight: '700', color: '#EAF3DE',
+    fontSize: 30, lineHeight: 32, fontFamily: FC, color: '#EAF3DE',
     flex: 1,
   },
   modalHeroTime: {
-    fontSize: 13, color: Colors.primaryMid, marginTop: 2,
+    fontSize: 14, fontFamily: FB, color: Colors.primaryMid, marginTop: 4,
   },
-  modalCloseBtn: { padding: 4 },
+  modalCloseBtn: { padding: 10 },
 
   modalInfoRow: {
     flexDirection: 'row', alignItems: 'center',
-    borderRadius: 12, borderWidth: 0.5,
+    borderRadius: 12, borderWidth: 1,
     padding: 12, marginBottom: 14,
     gap: 10,
   },
   modalInfoLabel: {
-    fontSize: 10, fontWeight: '700',
-    textTransform: 'uppercase', letterSpacing: 0.5,
+    fontSize: 12, fontFamily: FB,
     color: Colors.primaryMid, marginBottom: 2,
   },
   modalInfoValue: {
-    fontSize: 13, fontWeight: '600',
+    fontSize: 14, fontFamily: FBB,
     color: Colors.primaryLight, flex: 1,
   },
   statusBadge: {
@@ -844,87 +850,77 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 4,
     borderRadius: 99,
   },
-  statusBadgeText: { fontSize: 11, fontWeight: '700' },
+  statusBadgeText: { fontSize: 12, fontFamily: FBB },
 
   modalDivider:  { height: 0.5, marginBottom: 14 },
 
   noExercises:   { alignItems: 'center', paddingVertical: 32 },
-  noExercisesTxt:{ fontSize: 14 },
+  noExercisesTxt:{ fontSize: 14, fontFamily: FB },
 
-  blockContainer: { marginBottom: 10 },
+  blockContainer: { marginBottom: 12 },
   blockHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderLeftWidth: 3, borderRadius: 4, marginBottom: 4,
+    paddingHorizontal: 4, paddingVertical: 8,
+    borderBottomWidth: 1, marginBottom: 2,
   },
   blockDot:   { width: 8, height: 8, borderRadius: 4 },
-  blockTitle: { fontSize: 13, fontWeight: '700', flex: 1 },
-  blockCount: { fontSize: 11 },
+  blockTitle: { fontSize: 15, fontFamily: FBB, flex: 1 },
+  blockCount: { fontSize: 12, fontFamily: FB },
 
   exRow: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingVertical: 10,
+    paddingHorizontal: 4, paddingVertical: 12,
     borderBottomWidth: 0.5, gap: 10,
   },
-  exNumber: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  exNumberText: { fontSize: 12, fontWeight: '700' },
-  exInfo: { flex: 1, gap: 3 },
-  exName: { fontSize: 13, fontWeight: '600' },
-  exBadge: { alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  exBadgeText: { fontSize: 10, fontWeight: '600' },
-  exStats: { flexDirection: 'row', gap: 10 },
+  exNumber: { width: 20, alignItems: 'center' },
+  exNumberText: { fontSize: 13, fontFamily: FBB },
+  exInfo: { flex: 1, gap: 4 },
+  exName: { fontSize: 15, fontFamily: FBB },
+  exBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  exBadgeText: { fontSize: 11, fontFamily: FBB },
+  exStats: { flexDirection: 'row', gap: 14 },
   exStat: { alignItems: 'center' },
-  exStatValue: { fontSize: 15, fontWeight: '700' },
-  exStatLabel: { fontSize: 10 },
+  exStatValue: { fontSize: 17, fontFamily: FBB },
+  exStatLabel: { fontSize: 11, fontFamily: FB },
 
   // Botones acción modal
   btnConfirm: {
     backgroundColor: Colors.primary,
-    paddingVertical: 14, borderRadius: 14, alignItems: 'center',
+    paddingVertical: 15, borderRadius: 12, alignItems: 'center',
   },
-  btnConfirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  btnConfirmText: { color: '#fff', fontFamily: FBB, fontSize: 16 },
   btnDecline: {
-    borderWidth: 1.5, borderColor: '#FCA5A5',
-    backgroundColor: '#FEF2F2',
-    paddingVertical: 13, borderRadius: 14, alignItems: 'center',
+    borderWidth: 1, borderColor: '#FCA5A5',
+    backgroundColor: 'transparent',
+    paddingVertical: 14, borderRadius: 12, alignItems: 'center',
   },
-  btnDeclineText: { color: '#991B1B', fontWeight: '700', fontSize: 14 },
+  btnDeclineText: { color: '#D93B3A', fontFamily: FBB, fontSize: 15 },
   statusBanner: {
     backgroundColor: Colors.primaryLight,
-    paddingVertical: 14, borderRadius: 14, alignItems: 'center',
+    paddingVertical: 14, borderRadius: 12, alignItems: 'center',
   },
-  statusBannerText: { color: Colors.primary, fontWeight: '700', fontSize: 15 },
+  statusBannerText: { color: Colors.primary, fontFamily: FBB, fontSize: 15 },
 
   modalCloseFullBtn: {
-    marginTop: 14, paddingVertical: 13,
-    borderRadius: 12, borderWidth: 0.5, alignItems: 'center',
+    marginTop: 14, paddingVertical: 14,
+    borderRadius: 12, borderWidth: 1, alignItems: 'center',
   },
-  modalCloseFullTxt: { fontSize: 14 },
+  modalCloseFullTxt: { fontSize: 14, fontFamily: FB },
 
   // ── Active Workout Panel ──
   activeWorkoutBox: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E3E6DD',
     backgroundColor: '#FFFFFF',
 
-    padding: 14,
-    borderRadius: 22,
-
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-
-    elevation: 4,
+    padding: 16,
+    borderRadius: 14,
   },
   activeWorkoutHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   activeWorkoutHeroLeft: {
     flexDirection: 'row',
@@ -937,70 +933,70 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   activeWorkoutEyebrow: {
-    fontSize: 10, fontWeight: '800',
-    color: Colors.primary, letterSpacing: 1,
+    fontSize: 11, fontFamily: FBB,
+    color: Colors.primary, letterSpacing: 1.5,
   },
   activeWorkoutTitle: {
-    fontSize: 16, fontWeight: '700', marginTop: 1,
+    fontSize: 26, lineHeight: 28, fontFamily: FC, marginTop: 2,
   },
   activeBadge: {
     backgroundColor: Colors.primaryLight,
-    paddingHorizontal: 10, paddingVertical: 5,
+    paddingHorizontal: 10, paddingVertical: 4,
     borderRadius: 99,
   },
   activeBadgeText: {
-    color: Colors.primary, fontSize: 11, fontWeight: '700',
+    color: Colors.primary, fontSize: 12, fontFamily: FBB,
   },
 
   logCard: {
-    borderWidth: 1, borderRadius: 10,
-    padding: 10, marginBottom: 8,
+    borderWidth: 1, borderRadius: 12,
+    padding: 12, marginBottom: 8,
   },
-  logExerciseName: { fontSize: 14, fontWeight: '700' },
+  logExerciseName: { fontSize: 15, fontFamily: FBB },
 
-  logInputsRow: { flexDirection: 'row', gap: 6, alignItems: 'flex-end' },
+  logInputsRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-end' },
   logInputWrap: { flex: 1 },
   logInputLabel: {
-    fontSize: 10, fontWeight: '700',
-    color: Colors.primary, letterSpacing: 0.5,
+    fontSize: 12, fontFamily: FBB,
+    color: Colors.primary,
     marginBottom: 4,
   },
   logInput: {
     borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 18,
+    borderRadius: 12,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 18,
-    fontWeight: '800',
+    fontFamily: FBB,
     textAlign: 'center',
-    minHeight: 50,
+    minHeight: 48,
   },
   saveLogBtn: {
     backgroundColor: Colors.primary,
-    width: 50,
-    height: 50,
-    borderRadius: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'flex-end',
   },
-  saveLogBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  saveLogBtnText: { color: '#fff', fontFamily: FBB, fontSize: 18 },
 
   cancelWorkoutBtn: {
     marginTop: 10,
     borderWidth: 1, borderColor: '#FCA5A5',
-    backgroundColor: '#FEF2F2',
-    paddingVertical: 12, borderRadius: 12, alignItems: 'center',
+    backgroundColor: 'transparent',
+    paddingVertical: 13, borderRadius: 12, alignItems: 'center',
   },
-  cancelWorkoutText: { color: '#991B1B', fontWeight: '700', fontSize: 13 },
+  cancelWorkoutText: { color: '#D93B3A', fontFamily: FBB, fontSize: 14 },
   
   integratedWorkoutSection: {
-    paddingHorizontal: 14,
-    paddingTop: 22,
+    paddingHorizontal: 16,
+    paddingTop: 20,
     paddingBottom: 32,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F2F5EE',
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: '#E3E6DD',
   },
 
 });

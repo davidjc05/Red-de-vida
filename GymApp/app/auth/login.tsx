@@ -16,8 +16,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
-import { login } from '../../services/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { login, getRole, homeFor } from '../../services/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -36,12 +35,8 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email.trim(), password);
-      const role = await AsyncStorage.getItem('role');
-      if (role === 'admin') {
-        router.replace('/(tabs)/calendar');
-      } else {
-        router.replace('../(tabs)/inicio');
-      }
+      const role = await getRole();
+      router.replace(homeFor(role));
     } catch (e: any) {
       Alert.alert('Error de acceso', e?.message || 'Error desconocido');
     } finally {

@@ -1,7 +1,7 @@
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect, useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { useEffect, useState } from 'react';
-import { getMe } from '../../services/api';
+import { getMe, getToken, setOnUnauthorized } from '../../services/api';
 
 import {
   House,
@@ -11,17 +11,32 @@ import {
 } from 'lucide-react-native';
 
 export default function TabsLayout() {
+  const router = useRouter();
   const [user, setUser] = useState<any | null>(null);
   const [ready, setReady] = useState(false);
+  const [loggedOut, setLoggedOut] = useState(false);
 
+  // Si con la app abierta alguna petición recibe un 401, se vuelve al login
+  useEffect(() => {
+    setOnUnauthorized(() => router.replace('/auth/login'));
+    return () => setOnUnauthorized(null);
+  }, []);
+
+  // Puerta de entrada: cualquier camino hacia las pestañas pasa por aquí
   useEffect(() => {
     getMe()
       .then(setUser)
-      .catch(() => setUser(null))
+      .catch(async () => {
+        // Sin token (o rechazado, que authFetch ya borró) → login.
+        // Si solo falló la red, el token sigue y se deja entrar.
+        if (!(await getToken())) setLoggedOut(true);
+        setUser(null);
+      })
       .finally(() => setReady(true));
   }, []);
 
   if (!ready) return null;
+  if (loggedOut) return <Redirect href="/auth/login" />;
 
   const isAdmin = user?.role === 'admin';
 

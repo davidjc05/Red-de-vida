@@ -68,18 +68,21 @@ const ExerciseCard = ({ item, isAdmin, onView, onEdit, onDelete }: ExerciseCardP
 
       {/* ZONA CLICABLE (editar/ver) */}
       <TouchableOpacity
-        style={{ flex: 1 }}
+        style={{ flex: 1, flexDirection: 'row' }}
         onPress={() => isAdmin ? onEdit(item) : onView(item)}
         onLongPress={() => onView(item)}
         activeOpacity={0.75}
       >
         <View style={[s.cardStripe, { backgroundColor: gc.accent }]} />
 
-        <View style={s.cardBody}>
+        <View style={[s.cardBody, isAdmin && { paddingBottom: 40 }]}>
           {item.image_url ? (
             <Image source={{ uri: item.image_url }} style={s.cardThumb} />
           ) : (
             <View style={[s.cardThumbPlaceholder, { backgroundColor: gc.bg }]}>
+              <Text style={{ fontFamily: FC, fontSize: 30, color: gc.text }}>
+                {item.name.charAt(0).toUpperCase()}
+              </Text>
             </View>
           )}
 
@@ -111,14 +114,16 @@ const ExerciseCard = ({ item, isAdmin, onView, onEdit, onDelete }: ExerciseCardP
         <TouchableOpacity
           style={{
             position: 'absolute',
-            right: 12,
-            bottom: 12,
-            padding: 6,
+            right: 14,
+            bottom: 8,
+            paddingVertical: 8,
+            paddingHorizontal: 6,
             zIndex: 10,
           }}
+          hitSlop={{ top: 6, bottom: 6, left: 10, right: 10 }}
           onPress={() => onDelete(item)}
         >
-          <Text style={{ color: G.danger, fontSize: 25 }}>🗑️</Text>
+          <Text style={{ color: G.danger, fontSize: 13, fontFamily: FBB }}>Eliminar</Text>
         </TouchableOpacity>
       )}
 
@@ -140,7 +145,7 @@ const ExerciseDetailModal = ({ exercise, onClose }: DetailModalProps) => {
     <Modal visible={!!exercise} animationType="slide" transparent={false} onRequestClose={onClose}>
       <SafeAreaView style={s.detailSafeArea}>
         <View style={s.detailTopBar}>
-          <View style={[s.badge, { backgroundColor: gc.bg }]}>
+          <View style={[s.badge, { backgroundColor: gc.bg, marginTop: 0 }]}>
             <Text style={[s.badgeText, { color: gc.text }]}>{exercise.muscle_group}</Text>
           </View>
           <TouchableOpacity onPress={onClose} style={s.detailCloseBtn}>
@@ -163,7 +168,7 @@ const ExerciseDetailModal = ({ exercise, onClose }: DetailModalProps) => {
             )}
             {exercise.video_url && (
               <TouchableOpacity style={s.videoButton} onPress={() => Linking.openURL(exercise.video_url!)} activeOpacity={0.8}>
-                <View style={s.videoButtonIcon}><Text style={{ color: G.white, fontSize: 16 }}>▶</Text></View>
+                <View style={s.videoButtonIcon}><Text style={{ color: G.white, fontSize: 14 }}>▶</Text></View>
                 <Text style={s.videoButtonText}>Ver vídeo del ejercicio</Text>
               </TouchableOpacity>
             )}
@@ -171,7 +176,9 @@ const ExerciseDetailModal = ({ exercise, onClose }: DetailModalProps) => {
               <Image source={{ uri: exercise.image_url }} style={s.detailImage} resizeMode="contain" />
             ) : (
               <View style={[s.detailImagePlaceholder, { backgroundColor: gc.bg }]}>
-                <Text style={{ fontSize: 64 }}>💪</Text>
+                <Text style={{ fontFamily: FC, fontSize: 88, color: gc.text }}>
+                  {exercise.name.charAt(0).toUpperCase()}
+                </Text>
               </View>
             )}
             <TouchableOpacity style={s.detailCloseFull} onPress={onClose}>
@@ -249,7 +256,7 @@ const ExerciseEditModal = ({ exercise, onClose, onSaved }: EditModalProps) => {
     <Modal visible={!!exercise} animationType="slide" transparent onRequestClose={onClose}>
       <View style={s.modalOverlay}>
         <View style={s.modalCard}>
-          <View style={[s.modalAccentBar, { backgroundColor: '#F59E0B' }]} />
+          <View style={[s.modalAccentBar, { backgroundColor: G.border }]} />
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>Editar ejercicio</Text>
@@ -440,7 +447,7 @@ export default function ExercisesScreen() {
             </TouchableOpacity>
           )}
         </View>
-        <TextInput style={s.searchInput} placeholder="Buscar ejercicio..." placeholderTextColor="#A9C88A"
+        <TextInput style={s.searchInput} placeholder="Buscar ejercicio..." placeholderTextColor={G.textHint}
           value={search} onChangeText={setSearch} />
       </View>
 
@@ -466,7 +473,6 @@ export default function ExercisesScreen() {
         </View>
       ) : displayed.length === 0 ? (
         <View style={s.center}>
-          <Text style={{ fontSize: 40 }}>🔍</Text>
           <Text style={s.emptyTitle}>Sin resultados</Text>
           <Text style={s.emptySub}>Prueba otro filtro o crea un ejercicio nuevo</Text>
         </View>
@@ -576,42 +582,43 @@ const s = StyleSheet.create({
   loadingText: {
     color: G.textSub,
     fontSize: 14,
+    fontFamily: FB,
     marginTop: 8,
   },
 
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 26,
     color: G.textMain,
     textAlign: 'center',
+    fontFamily: FC,
   },
 
   emptySub: {
-    fontSize: 13,
-    color: G.textHint,
+    fontSize: 14,
+    color: G.textSub,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 20,
+    fontFamily: FB,
   },
 
   adminHint: {
-    backgroundColor: '#FEF9C3',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#FDE68A',
+    paddingTop: 2,
+    paddingBottom: 10,
   },
 
   adminHintText: {
     fontSize: 12,
-    color: '#92400E',
-    textAlign: 'center',
+    color: G.textSub,
+    fontFamily: FB,
   },
 
   header: {
-    backgroundColor: G.primary,
+    backgroundColor: G.bgPage,
 
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop: 20,
-    paddingBottom: 18,
+    paddingBottom: 4,
 
     zIndex: 1,
   },
@@ -620,59 +627,64 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 14,
+    marginBottom: 16,
   },
 
   headerEyebrow: {
-    fontSize: 10,
-    letterSpacing: 2,
-    color: '#97C459',
-    marginBottom: 4,
+    fontSize: 11,
+    letterSpacing: 1.5,
+    color: G.primary,
+    fontFamily: FBB,
+    marginBottom: 2,
   },
 
   headerTitle: {
-    fontSize: 36,
-    color: G.white,
-    lineHeight: 38,
-    letterSpacing: -0.5,
+    fontSize: 34,
+    color: G.textMain,
+    lineHeight: 36,
+    letterSpacing: -0.3,
+    fontFamily: FC,
   },
 
   headerSub: {
     fontSize: 13,
-    color: '#CFE7AF',
-    marginTop: 3,
+    color: G.textSub,
+    fontFamily: FB,
+    marginTop: 4,
   },
 
   addBtn: {
-    backgroundColor: G.primaryDark,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
+    backgroundColor: G.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
     borderRadius: 10,
     marginTop: 4,
   },
 
   addBtnText: {
-    fontSize: 14,
+    fontSize: 16,
     color: G.white,
     letterSpacing: 0.5,
+    fontFamily: FC,
   },
 
   searchInput: {
-    backgroundColor: G.primaryDark,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 14,
+    backgroundColor: G.white,
+    borderWidth: 1,
+    borderColor: G.border,
+    borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    fontSize: 14,
-    color: G.white,
+    fontSize: 15,
+    fontFamily: FB,
+    color: G.textMain,
   },
 
   chipsContainer: {
     backgroundColor: 'transparent',
     flexGrow: 0,
-    marginTop: 12,
-    minHeight: 60,
+    marginTop: 8,
+    minHeight: 56,
     zIndex: 20,
     elevation: 20,
     overflow: 'visible',
@@ -682,27 +694,28 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 6,
     paddingBottom: 10,
-    gap: 10,
+    gap: 8,
     alignItems: 'center',
   },
 
   chip: {
     paddingHorizontal: 16,
-    paddingVertical: 9,
+    paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: G.border,
-    backgroundColor: G.bgPage,
+    backgroundColor: G.white,
   },
 
   chipActive: {
-    backgroundColor: G.primary,
-    borderColor: G.primary,
+    backgroundColor: G.primaryDark,
+    borderColor: G.primaryDark,
   },
 
   chipText: {
-    fontSize: 12,
-    color: G.textHint,
+    fontSize: 13,
+    color: G.textSub,
+    fontFamily: FBB,
   },
 
   chipTextActive: {
@@ -711,93 +724,85 @@ const s = StyleSheet.create({
 
   list: {
     padding: 16,
-    gap: 16,
+    gap: 12,
     paddingBottom: 120,
   },
 
   card: {
     backgroundColor: G.white,
-    borderRadius: 22,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E3E6DD',
     overflow: 'hidden',
 
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-
-    elevation: 2,
-
-    minHeight: 110,
+    minHeight: 104,
   },
 
   cardStripe: {
-    width: 6,
-    borderTopLeftRadius: 22,
-    borderBottomLeftRadius: 22,
+    width: 4,
   },
 
   cardBody: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 18,
-    gap: 16,
+    padding: 16,
+    gap: 14,
   },
 
   cardThumb: {
-    width: 70,
-    height: 70,
-    borderRadius: 18,
+    width: 68,
+    height: 68,
+    borderRadius: 12,
   },
 
   cardThumbPlaceholder: {
-    width: 70,
-    height: 70,
-    borderRadius: 18,
+    width: 68,
+    height: 68,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
 
   cardInfo: {
     flex: 1,
-    gap: 6,
+    gap: 4,
   },
 
   cardName: {
     fontSize: 24,
-    color: '#111827',
+    color: G.textMain,
     fontFamily: FC,
     lineHeight: 26,
   },
 
   cardDesc: {
     fontSize: 13,
-    color: '#6B7280',
+    color: G.textSub,
+    fontFamily: FB,
     lineHeight: 18,
-    marginTop: 4,
+    marginTop: 2,
   },
 
   cardDescEmpty: {
     fontSize: 12,
-    color: G.border,
+    color: G.textHint,
+    fontFamily: FB,
     fontStyle: 'italic',
+    marginTop: 2,
   },
 
   badge: {
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    marginTop: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: 2,
   },
 
   badgeText: {
     fontSize: 12,
+    lineHeight: 16,
     fontFamily: FBB,
   },
 
@@ -827,21 +832,23 @@ const s = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: G.border,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E3E6DD',
     backgroundColor: G.white,
   },
 
   detailImage: {
     width: '100%',
     aspectRatio: 4 / 3,
-    borderRadius: 14,
-    marginTop: 20,
+    borderRadius: 12,
+    marginTop: 24,
   },
 
   detailImagePlaceholder: {
     width: '100%',
     height: 200,
+    borderRadius: 12,
+    marginTop: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -855,31 +862,32 @@ const s = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    marginBottom: 12,
+    marginBottom: 14,
   },
 
   detailName: {
-    fontSize: 32,
+    fontSize: 40,
     color: G.textMain,
-    letterSpacing: -0.5,
-    lineHeight: 34,
+    letterSpacing: -0.3,
+    lineHeight: 42,
+    fontFamily: FC,
     marginBottom: 20,
   },
 
   detailCloseBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: G.bgPage,
-    borderWidth: 0.5,
-    borderColor: G.border,
+    borderWidth: 1,
+    borderColor: '#E3E6DD',
     justifyContent: 'center',
     alignItems: 'center',
   },
 
   detailCloseTxt: {
     fontSize: 14,
-    color: G.textHint,
+    color: G.textSub,
   },
 
   detailDescBlock: {
@@ -887,30 +895,33 @@ const s = StyleSheet.create({
   },
 
   detailSectionLabel: {
-    fontSize: 10,
+    fontSize: 11,
     letterSpacing: 1.5,
     color: G.textHint,
-    marginBottom: 10,
+    fontFamily: FBB,
+    marginBottom: 8,
   },
 
   detailDescription: {
-    fontSize: 15,
-    color: G.textSub,
-    lineHeight: 26,
+    fontSize: 16,
+    color: G.textMain,
+    fontFamily: FB,
+    lineHeight: 25,
   },
 
   detailNoDesc: {
     backgroundColor: G.bgPage,
     borderRadius: 10,
     padding: 14,
-    borderWidth: 0.5,
-    borderColor: G.border,
+    borderWidth: 1,
+    borderColor: '#E3E6DD',
     marginBottom: 8,
   },
 
   detailNoDescTxt: {
     fontSize: 13,
-    color: G.textHint,
+    color: G.textSub,
+    fontFamily: FB,
     textAlign: 'center',
   },
 
@@ -919,15 +930,15 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     backgroundColor: G.primary,
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 12,
+    padding: 14,
     marginTop: 24,
   },
 
   videoButtonIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: G.primaryDark,
     justifyContent: 'center',
     alignItems: 'center',
@@ -936,21 +947,23 @@ const s = StyleSheet.create({
   videoButtonText: {
     fontSize: 15,
     color: G.white,
+    fontFamily: FBB,
     flex: 1,
   },
 
   detailCloseFull: {
-    marginTop: 16,
+    marginTop: 20,
     paddingVertical: 14,
     borderRadius: 12,
-    borderWidth: 0.5,
+    borderWidth: 1,
     borderColor: G.border,
     alignItems: 'center',
   },
 
   detailCloseFullTxt: {
     fontSize: 14,
-    color: G.textSub,
+    color: G.textMain,
+    fontFamily: FBB,
   },
 
   modalOverlay: {
@@ -961,8 +974,8 @@ const s = StyleSheet.create({
 
   modalCard: {
     backgroundColor: G.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     paddingHorizontal: 24,
     paddingBottom: 44,
     maxHeight: '88%',
@@ -970,45 +983,51 @@ const s = StyleSheet.create({
   },
 
   modalAccentBar: {
+    width: 36,
     height: 4,
-    backgroundColor: G.primary,
-    marginBottom: 24,
+    borderRadius: 2,
+    alignSelf: 'center',
+    backgroundColor: G.border,
+    marginTop: 10,
+    marginBottom: 20,
   },
 
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
 
   modalTitle: {
-    fontSize: 22,
+    fontSize: 28,
     color: G.textMain,
+    fontFamily: FC,
   },
 
   inputLabel: {
-    fontSize: 11,
-    color: G.textHint,
-    letterSpacing: 0.8,
-    marginBottom: 8,
+    fontSize: 13,
+    color: G.textSub,
+    fontFamily: FBB,
+    marginBottom: 6,
     marginTop: 2,
   },
 
   input: {
-    backgroundColor: G.bgPage,
-    borderWidth: 0.5,
+    backgroundColor: G.white,
+    borderWidth: 1,
     borderColor: G.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 14,
+    fontSize: 15,
+    fontFamily: FB,
     color: G.textMain,
     marginBottom: 16,
   },
 
   inputMultiline: {
-    height: 88,
+    height: 92,
     textAlignVertical: 'top',
   },
 
@@ -1020,22 +1039,23 @@ const s = StyleSheet.create({
   },
 
   modalChip: {
-    paddingHorizontal: 13,
-    paddingVertical: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: G.border,
-    backgroundColor: G.bgPage,
+    backgroundColor: G.white,
   },
 
   modalChipActive: {
-    backgroundColor: G.primary,
-    borderColor: G.primary,
+    backgroundColor: G.primaryDark,
+    borderColor: G.primaryDark,
   },
 
   modalChipText: {
-    fontSize: 12,
+    fontSize: 13,
     color: G.textSub,
+    fontFamily: FBB,
   },
 
   modalChipTextActive: {
@@ -1051,22 +1071,24 @@ const s = StyleSheet.create({
   },
 
   btnCancel: {
-    paddingHorizontal: 16,
-    paddingVertical: 13,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     borderRadius: 10,
-    borderWidth: 0.5,
+    borderWidth: 1,
     borderColor: G.border,
+    justifyContent: 'center',
   },
 
   btnCancelText: {
     fontSize: 14,
     color: G.textMain,
+    fontFamily: FBB,
   },
 
   btnSave: {
     flex: 1,
     backgroundColor: G.primary,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1074,7 +1096,8 @@ const s = StyleSheet.create({
 
   btnSaveText: {
     color: G.white,
-    fontSize: 14,
+    fontSize: 17,
     letterSpacing: 0.5,
+    fontFamily: FC,
   },
 });

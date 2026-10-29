@@ -1,6 +1,7 @@
 import { storage } from './storage';
 
-export const API_URL = 'https://pajamas-operable-traitor.ngrok-free.dev';
+export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
+
 
 // ── Token ─────────────────────────────────────────────────────
 export async function saveToken(token: string) {
@@ -30,6 +31,20 @@ export async function getRole(): Promise<string | null> {
   return await storage.getItem('role');
 }
 
+// Pantalla de inicio según el rol: el entrenador (admin) va a rutinas, el resto al calendario
+export function homeFor(role?: string | null) {
+  return role === 'admin'
+    ? ('/(tabs)/routines' as const)
+    : ('/(tabs)/calendar' as const);
+}
+
+// ── Sesión caducada ───────────────────────────────────────────
+// La pantalla que esté abierta registra aquí qué hacer cuando el servidor responde 401
+let onUnauthorized: (() => void) | null = null;
+export function setOnUnauthorized(fn: (() => void) | null) {
+  onUnauthorized = fn;
+}
+
 // ── Headers ───────────────────────────────────────────────────
 const COMMON_HEADERS = {
   'Content-Type': 'application/json',
@@ -40,7 +55,7 @@ const COMMON_HEADERS = {
 async function authFetch(path: string, options: RequestInit = {}) {
   const token = await getToken();
 
-  return fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       ...COMMON_HEADERS,
@@ -48,6 +63,14 @@ async function authFetch(path: string, options: RequestInit = {}) {
       ...options.headers,
     },
   });
+
+  // Token enviado pero rechazado: la sesión ya no vale → se borra y se avisa
+  if (res.status === 401 && token) {
+    await deleteToken();
+    onUnauthorized?.();
+  }
+
+  return res;
 }
 
 // ── AUTH ──────────────────────────────────────────────────────

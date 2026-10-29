@@ -6,13 +6,15 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gymapp",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-
+    "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "location"
+        ]
+      }
     },
-
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -20,18 +22,19 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "config": {
+        "googleMaps": {
+          "apiKey": "TU_API_KEY_DE_GOOGLE_MAPS"
+        }
+      }
     },
-
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-
     "plugins": [
       "expo-router",
-
       [
         "expo-splash-screen",
         {
@@ -44,9 +47,7 @@
           }
         }
       ],
-
       "expo-secure-store",
-
       [
         "expo-sensors",
         {
@@ -54,13 +55,16 @@
         }
       ],
       [
-        "expo-location", 
-      {
-      "locationAlwaysAndWhenInUsePermission": "Necesitamos tu ubicación para rastrear tu actividad"
-      }
-      ]
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Necesitamos tu ubicación para rastrear tu actividad, incluso con la pantalla bloqueada.",
+          "locationWhenInUsePermission": "Necesitamos tu ubicación para rastrear tu actividad.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "expo-font"
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

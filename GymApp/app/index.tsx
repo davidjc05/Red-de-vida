@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
-import { getToken } from '../services/api';
-import { storage } from '../services/storage';
 import { View, ActivityIndicator } from 'react-native';
+import { getToken, getMe, getRole, homeFor } from '../services/api';
+import { storage } from '../services/storage';
 import { Colors } from '../constants/colors';
 
 export default function Index() {
@@ -11,19 +11,26 @@ export default function Index() {
   useEffect(() => {
     async function check() {
       const token = await getToken();
-      const role = await storage.getItem('role');
-      console.log("TOKEN:", token);
-      console.log("ROLE:", role);
 
+      // Sin token: directo al login
       if (!token) {
         router.replace('/auth/login');
         return;
       }
 
-      if (role === 'admin') {
-        router.replace('/(tabs)/routines');
-      } else {
-        router.replace('/(tabs)/calendar');
+      try {
+        // Se valida el token contra el backend y se usa el rol que devuelve el servidor
+        const me = await getMe();
+        await storage.setItem('role', me.role);
+        router.replace(homeFor(me.role));
+      } catch {
+        // Si el servidor respondió 401, authFetch ya borró el token → login.
+        // Si fue un fallo de red, el token sigue ahí y se entra con el último rol guardado.
+        if (!(await getToken())) {
+          router.replace('/auth/login');
+          return;
+        }
+        router.replace(homeFor(await getRole()));
       }
     }
 

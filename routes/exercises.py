@@ -15,7 +15,7 @@ from schemas import ExerciseCreate, ExerciseOut
 router = APIRouter(prefix="/exercises", tags=["🏋️ Ejercicios"])
 
 
-@router.post("/", response_model=ExerciseOut, status_code=201)
+@router.post("", response_model=ExerciseOut, status_code=201)
 def create_exercise(exercise: ExerciseCreate, db: Session = Depends(get_db)):
     """Crea un nuevo ejercicio."""
     db_exercise = Exercise(**exercise.model_dump())
@@ -25,7 +25,7 @@ def create_exercise(exercise: ExerciseCreate, db: Session = Depends(get_db)):
     return db_exercise
 
 
-@router.get("/", response_model=List[ExerciseOut])
+@router.get("", response_model=List[ExerciseOut])
 def list_exercises(muscle_group: str = None, db: Session = Depends(get_db)):
     """Lista todos los ejercicios. Filtra por grupo muscular con ?muscle_group=pecho"""
     query = db.query(Exercise)

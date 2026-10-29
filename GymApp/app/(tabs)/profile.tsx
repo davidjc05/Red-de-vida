@@ -1,16 +1,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, SafeAreaView, ActivityIndicator,
-  Switch, Alert, Platform, TextInput, Modal,
+  useColorScheme, ActivityIndicator,
+  Switch, Alert, Platform, TextInput, Modal, Image, Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import Svg, { Polyline, Circle, Defs, LinearGradient, Stop, Line, Text as SvgText } from 'react-native-svg';
+import Svg, { Polyline, Circle, Line, Text as SvgText } from 'react-native-svg';
+import {
+  Bell, Moon, Lock, Download, Info, Camera, LogOut, ChevronRight, Pencil,
+} from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { getMe, deleteToken, getMyWorkoutLogs } from '../../services/api';
 
-const { width } = require('react-native').Dimensions.get('window');
+const { width } = Dimensions.get('window');
+
+// Mismas fuentes que la pantalla de calendario
+const FC  = 'BarlowCondensed-ExtraBold';
+const FB  = 'Barlow-Regular';
+const FBB = 'Barlow-Bold';
 
 // ─── Paleta ───────────────────────────────────────────────────────────────────
 const P = {
@@ -21,13 +30,28 @@ const P = {
   slateCard:'#1E293B',
   border:   '#334155',
   textDim:  '#94A3B8',
-  red:      '#EF4444',
+  red:      '#C4242A',
   yellow:   '#F59E0B',
   blue:     '#3B82F6',
   purple:   '#8B5CF6',
 };
 
 const EXERCISE_COLORS = [P.green, P.blue, P.yellow, P.purple, '#EC4899', '#14B8A6', '#F97316'];
+
+// Paleta compartida con el calendario (misma ground, superficie y bordes)
+const makePalette = (isDark: boolean) => ({
+  bg:      isDark ? '#111111' : '#F2F5EE',
+  surface: isDark ? '#1A1A1A' : '#FFFFFF',
+  text:    isDark ? '#F2F2F0' : '#1A1A1A',
+  textSub: isDark ? '#A1A1A0' : '#5F5E5A',
+  border:  isDark ? '#2A2A2A' : '#E3E6DD',
+});
+
+// "1.2t" -> { num: '1.2', unit: 't' } para pintar la unidad más pequeña y en gris
+const splitUnit = (v: string) => {
+  const m = String(v).match(/^(-?[\d.,]+)(.*)$/);
+  return m ? { num: m[1], unit: m[2] } : { num: String(v), unit: '' };
+};
 
 // ─── Gráfica de línea de progreso ─────────────────────────────────────────────
 function ProgressChart({
@@ -37,10 +61,12 @@ function ProgressChart({
   color: string;
   isDark: boolean;
 }) {
+  const C = makePalette(isDark);
+
   if (data.length < 2) {
     return (
       <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-        <Text style={{ color: isDark ? P.textDim : '#94A3B8', fontSize: 12 }}>
+        <Text style={{ color: C.textSub, fontSize: 13, fontFamily: FB, textAlign: 'center' }}>
           Registra más entrenamientos para ver tu progreso
         </Text>
       </View>
@@ -48,134 +74,154 @@ function ProgressChart({
   }
 
   const W = width - 80;
-  const H = 90;
-  const pad = 12;
+  const H = 110;
+  const padL = 36;   // carril para las marcas del eje Y
+  const padR = 14;
+  const padT = 20;
+  const padB = 10;
   const vals = data.map(d => d.kg);
   const min = Math.min(...vals);
   const max = Math.max(...vals);
-  const range = max - min || 1;
-  const step = (W - pad * 2) / (data.length - 1);
+  const range = max - min;
+  const step = (W - padL - padR) / (data.length - 1);
 
-  const toX = (i: number) => pad + i * step;
-  const toY = (v: number) => pad + ((max - v) / range) * (H - pad * 2);
+  const toX = (i: number) => padL + i * step;
+  const toY = (v: number) =>
+    range === 0 ? padT + (H - padT - padB) / 2 : padT + ((max - v) / range) * (H - padT - padB);
 
   const points = data.map((d, i) => `${toX(i)},${toY(d.kg)}`).join(' ');
   const last = data[data.length - 1];
   const first = data[0];
   const diff = last.kg - first.kg;
-  const diffColor = diff >= 0 ? P.green : P.red;
+  const good = isDark ? P.greenMid : P.green;
+  const bad  = isDark ? '#E5566F' : P.red;
+  const diffColor = diff >= 0 ? good : bad;
+  const fmt = (v: number) => String(Number(v.toFixed(1)));
 
   return (
     <View style={{ gap: 6 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={{ fontSize: 11, color: isDark ? P.textDim : '#64748B' }}>
+        <Text style={{ fontSize: 12, fontFamily: FB, color: C.textSub }}>
           {data.length} registros
         </Text>
-        <Text style={{ fontSize: 12, fontWeight: '700', color: diffColor }}>
-          {diff >= 0 ? '+' : ''}{diff.toFixed(1)} kg
+        <Text style={{ fontSize: 12, fontFamily: FBB, color: diffColor }}>
+          {diff >= 0 ? '+' : ''}{diff.toFixed(1)} kg desde el primer registro
         </Text>
       </View>
       <Svg width={W} height={H}>
-        <Defs>
-          <LinearGradient id={`grad_${color}`} x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor={color} stopOpacity="0.3" />
-            <Stop offset="1" stopColor={color} stopOpacity="1" />
-          </LinearGradient>
-        </Defs>
-        {/* Grid lines */}
-        {[0, 0.5, 1].map((t, i) => (
-          <Line
-            key={i}
-            x1={pad} y1={pad + t * (H - pad * 2)}
-            x2={W - pad} y2={pad + t * (H - pad * 2)}
-            stroke={isDark ? '#1E293B' : '#F1F5F9'}
-            strokeWidth={1}
-          />
-        ))}
-        {/* Línea */}
+        {/* Líneas guía + escala del eje Y */}
+        {[0, 0.5, 1].map((t, i) => {
+          const y = padT + t * (H - padT - padB);
+          return (
+            <React.Fragment key={i}>
+              <Line
+                x1={padL} y1={y}
+                x2={W - padR} y2={y}
+                stroke={C.border}
+                strokeWidth={1}
+              />
+              <SvgText
+                x={padL - 8}
+                y={y + 3.5}
+                fontSize="11"
+                fill={C.textSub}
+                textAnchor="end"
+              >
+                {fmt(max - t * range)}
+              </SvgText>
+            </React.Fragment>
+          );
+        })}
+        {/* Línea: un solo tono, tramos rectos */}
         <Polyline
           points={points}
           fill="none"
-          stroke={`url(#grad_${color})`}
-          strokeWidth={2.5}
+          stroke={color}
+          strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        {/* Puntos */}
-        {data.map((d, i) => (
-          <Circle key={i} cx={toX(i)} cy={toY(d.kg)} r={3} fill={color} />
-        ))}
-        {/* Punto final destacado */}
-        <Circle cx={toX(data.length - 1)} cy={toY(last.kg)} r={6} fill={color + '33'} />
-        <Circle cx={toX(data.length - 1)} cy={toY(last.kg)} r={3.5} fill={color} />
-        {/* Valor actual */}
+        {/* Solo el último punto, que es el dato actual */}
+        <Circle cx={toX(data.length - 1)} cy={toY(last.kg)} r={4} fill={color} />
         <SvgText
-          x={toX(data.length - 1)}
+          x={toX(data.length - 1) + 4}
           y={toY(last.kg) - 10}
-          fontSize="10"
+          fontSize="11"
           fontWeight="700"
-          fill={color}
-          textAnchor="middle"
+          fill={C.text}
+          textAnchor="end"
         >
           {last.kg}kg
         </SvgText>
       </Svg>
+      {!!first.date && !!last.date && (
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: padL, paddingRight: padR }}>
+          <Text style={{ fontSize: 11, fontFamily: FB, color: C.textSub }}>{first.date}</Text>
+          <Text style={{ fontSize: 11, fontFamily: FB, color: C.textSub }}>{last.date}</Text>
+        </View>
+      )}
     </View>
   );
 }
 
-// ─── Tarjeta de stat ──────────────────────────────────────────────────────────
+// ─── Tarjeta de stat (etiqueta arriba, cifra debajo, sin icono) ───────────────
 function StatCard({ icon, value, label, color, isDark }: {
   icon: string; value: string; label: string; color: string; isDark: boolean;
 }) {
+  const C = makePalette(isDark);
+  const { num, unit } = splitUnit(value);
   return (
-    <View style={[sc.card, {
-      backgroundColor: isDark ? P.slateCard : '#FFFFFF',
-      borderColor: isDark ? P.border : '#E2E8F0',
-    }]}>
-      <View style={[sc.iconBox, { backgroundColor: color + '18' }]}>
-        <Text style={{ fontSize: 18 }}>{icon}</Text>
-      </View>
-      <Text style={[sc.value, { color: isDark ? '#F1F5F9' : '#1A1A1A' }]}>{value}</Text>
-      <Text style={[sc.label, { color: isDark ? P.textDim : '#64748B' }]}>{label}</Text>
+    <View style={sc.card}>
+      <Text style={[sc.label, { color: C.textSub }]} numberOfLines={1}>{label}</Text>
+      <Text style={[sc.value, { color: C.text }]}>
+        {num}
+        {unit ? <Text style={[sc.unit, { color: C.textSub }]}>{unit}</Text> : null}
+      </Text>
     </View>
   );
 }
 const sc = StyleSheet.create({
-  card: { flex: 1, borderRadius: 16, borderWidth: 0.5, padding: 14, gap: 6, alignItems: 'center' },
-  iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  value: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
-  label: { fontSize: 10, fontWeight: '600', textAlign: 'center' },
+  card:  { flex: 1, paddingVertical: 14, paddingHorizontal: 14, gap: 4 },
+  label: { fontSize: 12, fontFamily: FB },
+  value: { fontSize: 30, lineHeight: 32, fontFamily: FC, fontVariant: ['tabular-nums'] },
+  unit:  { fontSize: 14, fontFamily: FBB },
 });
 
 // ─── Fila de ajuste ───────────────────────────────────────────────────────────
-function SettingRow({ icon, label, sub, right, onPress, isDark }: {
+const SETTING_ICONS: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
+  '🔔': Bell,
+  '🌙': Moon,
+  '🔒': Lock,
+  '📊': Download,
+  '❓': Info,
+};
+
+function SettingRow({ icon, label, sub, right, onPress, isDark, last }: {
   icon: string; label: string; sub?: string;
-  right?: React.ReactNode; onPress?: () => void; isDark: boolean;
+  right?: React.ReactNode; onPress?: () => void; isDark: boolean; last?: boolean;
 }) {
-  const Wrap = onPress ? TouchableOpacity : View;
+  const C = makePalette(isDark);
+  const Wrap: any = onPress ? TouchableOpacity : View;
+  const Icon = SETTING_ICONS[icon] ?? Info;
   return (
     <Wrap
-      style={[sr.row, { borderBottomColor: isDark ? P.border : '#F1F5F9' }]}
+      style={[sr.row, { borderBottomColor: C.border, borderBottomWidth: last ? 0 : 1 }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={[sr.iconBox, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC' }]}>
-        <Text style={{ fontSize: 16 }}>{icon}</Text>
-      </View>
+      <Icon size={18} color={C.textSub} />
       <View style={{ flex: 1 }}>
-        <Text style={[sr.label, { color: isDark ? '#F1F5F9' : '#1A1A1A' }]}>{label}</Text>
-        {sub && <Text style={[sr.sub, { color: isDark ? P.textDim : '#64748B' }]}>{sub}</Text>}
+        <Text style={[sr.label, { color: C.text }]}>{label}</Text>
+        {sub ? <Text style={[sr.sub, { color: C.textSub }]}>{sub}</Text> : null}
       </View>
-      {right ?? <Text style={{ color: isDark ? P.textDim : '#CBD5E1', fontSize: 16 }}>›</Text>}
+      {right ?? <ChevronRight size={18} color={C.textSub} />}
     </Wrap>
   );
 }
 const sr = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 0.5 },
-  iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 14, fontWeight: '600' },
-  sub: { fontSize: 11, marginTop: 1 },
+  row:   { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 60, paddingVertical: 12 },
+  label: { fontSize: 15, fontFamily: FBB },
+  sub:   { fontSize: 12, fontFamily: FB, marginTop: 2 },
 });
 
 // ─── Pantalla principal ───────────────────────────────────────────────────────
@@ -183,13 +229,7 @@ export default function ProfileScreen() {
   const isDark = useColorScheme() === 'dark';
   const router = useRouter();
 
-  const C = {
-    bg:      isDark ? '#0F172A' : '#F5F7FA',
-    surface: isDark ? P.slateCard : '#FFFFFF',
-    text:    isDark ? '#F1F5F9' : '#1A1A1A',
-    textSub: isDark ? P.textDim : '#64748B',
-    border:  isDark ? P.border : '#E2E8F0',
-  };
+  const C = makePalette(isDark);
 
   const [user, setUser] = useState<any>(null);
   const [logs, setLogs] = useState<any[]>([]);
@@ -267,7 +307,7 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[s.container, { backgroundColor: C.bg }]}>
+      <SafeAreaView style={[s.container, { backgroundColor: C.bg }]} edges={['top']}>
         <View style={s.center}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
@@ -276,9 +316,11 @@ export default function ProfileScreen() {
   }
 
   const initials = user?.name?.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() ?? '?';
+  const negative = isDark ? '#E5566F' : P.red;
+  const isAdmin = user?.role === 'admin';
 
   return (
-    <SafeAreaView style={[s.container, { backgroundColor: C.bg }]}>
+    <SafeAreaView style={[s.container, { backgroundColor: C.bg }]} edges={['top']}>
 
       {/* ── Modal editar nombre ── */}
       <Modal visible={editModal} transparent animationType="slide">
@@ -295,17 +337,17 @@ export default function ProfileScreen() {
             />
             <View style={s.modalBtns}>
               <TouchableOpacity style={[s.modalBtnCancel, { borderColor: C.border }]} onPress={() => setEditModal(false)}>
-                <Text style={{ color: C.textSub, fontWeight: '600' }}>Cancelar</Text>
+                <Text style={{ color: C.textSub, fontFamily: FBB, fontSize: 15 }}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[s.modalBtnOk, { backgroundColor: Colors.primary }]}
                 onPress={() => {
                   setUser((p: any) => ({ ...p, name: editName }));
                   setEditModal(false);
-                  Alert.alert('✓ Nombre actualizado');
+                  Alert.alert('Nombre actualizado');
                 }}
               >
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Guardar</Text>
+                <Text style={{ color: '#fff', fontFamily: FBB, fontSize: 15 }}>Guardar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -315,52 +357,69 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
 
         {/* ════════════════════════════
-            HERO DEL PERFIL
+            TÍTULO + IDENTIDAD
         ════════════════════════════ */}
-        <View style={[s.hero, { backgroundColor: Colors.primary }]}>
-          {/* Avatar */}
-          <TouchableOpacity style={s.avatarWrap} onPress={pickPhoto} activeOpacity={0.85}>
+        <View style={s.titleRow}>
+          <Text style={[s.pageTitle, { color: C.text }]}>Perfil</Text>
+        </View>
+
+        <View style={s.hero}>
+          <TouchableOpacity
+            style={s.avatarWrap}
+            onPress={pickPhoto}
+            activeOpacity={0.85}
+            accessibilityLabel="Cambiar foto de perfil"
+          >
             {photoUri ? (
-              <View style={s.avatarImg}>
-                {/* En producción usarías <Image source={{ uri: photoUri }} style={s.avatarImg} /> */}
-                <Text style={s.avatarInitials}>{initials}</Text>
-              </View>
+              <Image source={{ uri: photoUri }} style={s.avatarImg} />
             ) : (
-              <View style={s.avatarPlaceholder}>
-                <Text style={s.avatarInitials}>{initials}</Text>
+              <View style={[
+                s.avatarPlaceholder,
+                { backgroundColor: isDark ? Colors.primary + '33' : Colors.primaryLight },
+              ]}>
+                <Text style={[s.avatarInitials, { color: isDark ? C.text : Colors.primary }]}>{initials}</Text>
               </View>
             )}
-            <View style={s.avatarEditBadge}>
-              <Text style={{ fontSize: 12 }}>📷</Text>
+            <View style={[s.avatarEditBadge, { backgroundColor: C.surface, borderColor: C.border }]}>
+              <Camera size={12} color={C.textSub} />
             </View>
           </TouchableOpacity>
 
-          {/* Info */}
           <View style={s.heroInfo}>
-            <TouchableOpacity onPress={() => setEditModal(true)} style={s.nameRow}>
-              <Text style={s.heroName}>{user?.name ?? 'Usuario'}</Text>
-              <View style={s.editBadge}>
-                <Text style={{ fontSize: 10, color: Colors.primaryLight }}>✏️ editar</Text>
-              </View>
+            <TouchableOpacity
+              onPress={() => setEditModal(true)}
+              style={s.nameRow}
+              accessibilityLabel="Editar nombre"
+            >
+              <Text style={[s.heroName, { color: C.text }]} numberOfLines={1}>{user?.name ?? 'Usuario'}</Text>
+              <Pencil size={14} color={C.textSub} />
             </TouchableOpacity>
-            <Text style={s.heroEmail}>{user?.email ?? ''}</Text>
-            <View style={[s.roleBadge, { backgroundColor: user?.role === 'admin' ? '#FFD60A22' : '#FFFFFF22' }]}>
-              <Text style={[s.roleText, { color: user?.role === 'admin' ? '#FFD60A' : '#FFFFFF99' }]}>
-                {user?.role === 'admin' ? '⭐ Entrenador' : '💪 Atleta'}
+            <Text style={[s.heroEmail, { color: C.textSub }]} numberOfLines={1}>{user?.email ?? ''}</Text>
+            <View style={[
+              s.roleBadge,
+              { backgroundColor: isAdmin ? '#FEF3C7' : isDark ? '#2A2A2A' : '#E3E6DD' },
+            ]}>
+              <Text style={[
+                s.roleText,
+                { color: isAdmin ? '#92400E' : isDark ? '#D6D6D4' : '#4A4944' },
+              ]}>
+                {isAdmin ? 'Entrenador' : 'Atleta'}
               </Text>
             </View>
           </View>
         </View>
 
         {/* ════════════════════════════
-            STATS
+            RESUMEN
         ════════════════════════════ */}
         <View style={[s.section, { paddingHorizontal: 16, marginTop: 20 }]}>
-          <Text style={[s.sectionTitle, { color: C.text }]}>📊 Resumen</Text>
-          <View style={s.statsRow}>
-            <StatCard icon="🏋️" value={String(totalSessions)} label="Sesiones" color={Colors.primary} isDark={isDark} />
-            <StatCard icon="🔥" value={`${(totalKg / 1000).toFixed(1)}t`} label="Volumen total" color="#F97316" isDark={isDark} />
-            <StatCard icon="🏆" value={`${maxKgEver}kg`} label="Mejor marca" color="#F59E0B" isDark={isDark} />
+          <Text style={[s.sectionTitle, { color: C.text }]}>Resumen</Text>
+          <View style={[s.statsRow, { backgroundColor: C.surface, borderColor: C.border }]}>
+            <StatCard icon="" value={String(totalSessions)} label="Sesiones" color={Colors.primary} isDark={isDark} />
+            <View style={[s.statsDivider, { backgroundColor: C.border }]} />
+            <StatCard icon="" value={`${(totalKg / 1000).toFixed(1)}t`} label="Volumen total" color={Colors.primary} isDark={isDark} />
+            <View style={[s.statsDivider, { backgroundColor: C.border }]} />
+            <StatCard icon="" value={`${maxKgEver}kg`} label="Mejor marca" color={Colors.primary} isDark={isDark} />
           </View>
         </View>
 
@@ -369,13 +428,12 @@ export default function ProfileScreen() {
         ════════════════════════════ */}
         <View style={[s.section, { paddingHorizontal: 16 }]}>
           <View style={s.sectionHeader}>
-            <Text style={[s.sectionTitle, { color: C.text }]}>📈 Progreso de pesos</Text>
+            <Text style={[s.sectionTitle, { color: C.text }]}>Progreso de pesos</Text>
             <Text style={[s.sectionSub, { color: C.textSub }]}>{exerciseList.length} ejercicios</Text>
           </View>
 
           {exerciseList.length === 0 ? (
-            <View style={[s.emptyCard, { backgroundColor: C.surface, borderColor: C.border }]}>
-              <Text style={{ fontSize: 36 }}>📋</Text>
+            <View style={[s.emptyCard, { borderColor: C.border }]}>
               <Text style={[s.emptyTitle, { color: C.text }]}>Sin registros aún</Text>
               <Text style={[s.emptySub, { color: C.textSub }]}>
                 Cuando registres pesos en el calendario aparecerá tu progreso aquí
@@ -386,17 +444,26 @@ export default function ProfileScreen() {
 
               {/* Selector de ejercicio */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.exSelector}>
-                {exerciseList.map((ex, i) => {
-                  const color = EXERCISE_COLORS[i % EXERCISE_COLORS.length];
+                {exerciseList.map((ex) => {
                   const active = (selectedExercise ?? exerciseList[0]?.name) === ex.name;
                   return (
                     <TouchableOpacity
                       key={ex.name}
-                      style={[s.exChip, { borderColor: active ? color : C.border, backgroundColor: active ? color + '18' : 'transparent' }]}
+                      style={[
+                        s.exChip,
+                        {
+                          borderColor: active ? Colors.primary : C.border,
+                          backgroundColor: active
+                            ? (isDark ? Colors.primary + '33' : Colors.primaryLight)
+                            : 'transparent',
+                        },
+                      ]}
                       onPress={() => setSelectedExercise(ex.name)}
                     >
-                      <View style={[s.exChipDot, { backgroundColor: color }]} />
-                      <Text style={[s.exChipText, { color: active ? color : C.textSub }]} numberOfLines={1}>
+                      <Text
+                        style={[s.exChipText, { color: active ? C.text : C.textSub }]}
+                        numberOfLines={1}
+                      >
                         {ex.name}
                       </Text>
                     </TouchableOpacity>
@@ -404,29 +471,33 @@ export default function ProfileScreen() {
                 })}
               </ScrollView>
 
-              {/* Gráfica */}
+              {/* Cifras + gráfica */}
               {currentExercise && (
-                <View style={{ gap: 12 }}>
+                <View style={{ gap: 14 }}>
                   <View style={s.exStatRow}>
                     <View style={s.exStatItem}>
-                      <Text style={[s.exStatVal, { color: Colors.primary }]}>{currentExercise.maxKg}kg</Text>
                       <Text style={[s.exStatLbl, { color: C.textSub }]}>Máximo</Text>
-                    </View>
-                    <View style={s.exStatItem}>
-                      <Text style={[s.exStatVal, { color: P.blue }]}>
-                        {(currentExercise.data.reduce((s, d) => s + d.kg, 0) / currentExercise.data.length).toFixed(1)}kg
+                      <Text style={[s.exStatVal, { color: C.text }]}>
+                        {currentExercise.maxKg}
+                        <Text style={[s.exStatUnit, { color: C.textSub }]}>kg</Text>
                       </Text>
-                      <Text style={[s.exStatLbl, { color: C.textSub }]}>Media</Text>
                     </View>
                     <View style={s.exStatItem}>
-                      <Text style={[s.exStatVal, { color: P.yellow }]}>{currentExercise.data.length}</Text>
+                      <Text style={[s.exStatLbl, { color: C.textSub }]}>Media</Text>
+                      <Text style={[s.exStatVal, { color: C.text }]}>
+                        {(currentExercise.data.reduce((s, d) => s + d.kg, 0) / currentExercise.data.length).toFixed(1)}
+                        <Text style={[s.exStatUnit, { color: C.textSub }]}>kg</Text>
+                      </Text>
+                    </View>
+                    <View style={s.exStatItem}>
                       <Text style={[s.exStatLbl, { color: C.textSub }]}>Registros</Text>
+                      <Text style={[s.exStatVal, { color: C.text }]}>{currentExercise.data.length}</Text>
                     </View>
                   </View>
 
                   <ProgressChart
                     data={currentExercise.data}
-                    color={EXERCISE_COLORS[exerciseList.findIndex(e => e.name === currentExercise.name) % EXERCISE_COLORS.length]}
+                    color={Colors.primary}
                     isDark={isDark}
                   />
                 </View>
@@ -434,13 +505,19 @@ export default function ProfileScreen() {
 
               {/* Tabla de máximos */}
               <View style={[s.maxTable, { borderTopColor: C.border }]}>
-                <Text style={[s.maxTableTitle, { color: C.textSub }]}>🏆 Mejores marcas</Text>
-                {exerciseList.slice(0, 5).map((ex, i) => (
-                  <View key={ex.name} style={[s.maxRow, { borderBottomColor: C.border }]}>
-                    <View style={[s.maxDot, { backgroundColor: EXERCISE_COLORS[i % EXERCISE_COLORS.length] }]} />
+                <Text style={[s.maxTableTitle, { color: C.textSub }]}>Mejores marcas</Text>
+                {exerciseList.slice(0, 5).map((ex, i, arr) => (
+                  <View
+                    key={ex.name}
+                    style={[
+                      s.maxRow,
+                      { borderBottomColor: C.border, borderBottomWidth: i === arr.length - 1 ? 0 : 1 },
+                    ]}
+                  >
                     <Text style={[s.maxName, { color: C.text }]} numberOfLines={1}>{ex.name}</Text>
-                    <Text style={[s.maxKg, { color: EXERCISE_COLORS[i % EXERCISE_COLORS.length] }]}>
-                      {ex.maxKg} kg
+                    <Text style={[s.maxKg, { color: C.text }]}>
+                      {ex.maxKg}
+                      <Text style={[s.maxKgUnit, { color: C.textSub }]}> kg</Text>
                     </Text>
                   </View>
                 ))}
@@ -453,7 +530,7 @@ export default function ProfileScreen() {
             AJUSTES
         ════════════════════════════ */}
         <View style={[s.section, { paddingHorizontal: 16 }]}>
-          <Text style={[s.sectionTitle, { color: C.text }]}>⚙️ Ajustes</Text>
+          <Text style={[s.sectionTitle, { color: C.text }]}>Ajustes</Text>
           <View style={[s.settingsCard, { backgroundColor: C.surface, borderColor: C.border }]}>
             <SettingRow
               icon="🔔"
@@ -463,8 +540,9 @@ export default function ProfileScreen() {
                 <Switch
                   value={notifications}
                   onValueChange={setNotifications}
-                  trackColor={{ false: C.border, true: Colors.primary + '88' }}
-                  thumbColor={notifications ? Colors.primary : '#ccc'}
+                  trackColor={{ false: C.border, true: Colors.primary }}
+                  ios_backgroundColor={C.border}
+                  thumbColor="#FFFFFF"
                 />
               }
               isDark={isDark}
@@ -477,8 +555,9 @@ export default function ProfileScreen() {
                 <Switch
                   value={darkMode}
                   onValueChange={setDarkMode}
-                  trackColor={{ false: C.border, true: Colors.primary + '88' }}
-                  thumbColor={darkMode ? Colors.primary : '#ccc'}
+                  trackColor={{ false: C.border, true: Colors.primary }}
+                  ios_backgroundColor={C.border}
+                  thumbColor="#FFFFFF"
                 />
               }
               isDark={isDark}
@@ -502,23 +581,24 @@ export default function ProfileScreen() {
               label="Ayuda y soporte"
               onPress={() => Alert.alert('Soporte', 'Contacta con tu entrenador para cualquier duda')}
               isDark={isDark}
+              last
             />
           </View>
         </View>
 
-        {/* ── Versión ── */}
-        <Text style={[s.version, { color: C.textSub }]}>Red de Vida v1.0.0</Text>
-
-        {/* ── Cerrar sesión ── */}
-        <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
+        {/* ── Cerrar sesión (acción destructiva, al final y aparte) ── */}
+        <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
           <TouchableOpacity
-            style={[s.logoutBtn, { borderColor: P.red + '44', backgroundColor: P.red + '08' }]}
+            style={[s.logoutBtn, { borderColor: negative }]}
             onPress={handleLogout}
           >
-            <Text style={{ fontSize: 18 }}>🚪</Text>
-            <Text style={[s.logoutText, { color: P.red }]}>Cerrar sesión</Text>
+            <LogOut size={18} color={negative} />
+            <Text style={[s.logoutText, { color: negative }]}>Cerrar sesión</Text>
           </TouchableOpacity>
         </View>
+
+        {/* ── Versión ── */}
+        <Text style={[s.version, { color: C.textSub }]}>Red de Vida v1.0.0</Text>
 
       </ScrollView>
     </SafeAreaView>
@@ -526,87 +606,94 @@ export default function ProfileScreen() {
 }
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
+// Radios: tarjetas 14, controles 12, chips y pills 99. Sin sombras ni degradados.
 const s = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  // Hero
-  hero: { paddingTop: 28, paddingBottom: 28, paddingHorizontal: 20, alignItems: 'center', gap: 14 },
+  // Título + identidad
+  titleRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
+  pageTitle: { fontSize: 30, lineHeight: 32, fontFamily: FC },
+
+  hero: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 16, paddingBottom: 4 },
   avatarWrap: { position: 'relative' },
   avatarPlaceholder: {
-    width: 90, height: 90, borderRadius: 45,
-    backgroundColor: Colors.primaryDark ?? '#2A5009',
+    width: 72, height: 72, borderRadius: 36,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: 'rgba(255,255,255,0.3)',
   },
-  avatarImg: {
-    width: 90, height: 90, borderRadius: 45,
-    backgroundColor: Colors.primaryDark ?? '#2A5009',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: 'rgba(255,255,255,0.3)',
-  },
-  avatarInitials: { fontSize: 32, fontWeight: '800', color: '#FFFFFF' },
+  avatarImg: { width: 72, height: 72, borderRadius: 36 },
+  avatarInitials: { fontSize: 28, fontFamily: FC },
   avatarEditBadge: {
-    position: 'absolute', bottom: 0, right: 0,
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    position: 'absolute', bottom: -2, right: -2,
+    width: 26, height: 26, borderRadius: 13,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: Colors.primary,
+    borderWidth: 1,
   },
-  heroInfo: { alignItems: 'center', gap: 6 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  heroName: { fontSize: 24, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
-  editBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)' },
-  heroEmail: { fontSize: 13, color: 'rgba(255,255,255,0.65)' },
-  roleBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
-  roleText: { fontSize: 12, fontWeight: '700' },
+  heroInfo: { flex: 1, gap: 4, alignItems: 'flex-start' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', minHeight: 32 },
+  heroName: { fontSize: 20, fontFamily: FBB, flexShrink: 1 },
+  heroEmail: { fontSize: 13, fontFamily: FB, alignSelf: 'stretch' },
+  roleBadge: { paddingHorizontal: 10, height: 22, borderRadius: 99, justifyContent: 'center', marginTop: 2 },
+  roleText: { fontSize: 12, fontFamily: FBB },
 
-  // Sections
-  section: { gap: 12, marginBottom: 8, marginTop: 12 },
+  // Secciones
+  section: { gap: 12, marginBottom: 8, marginTop: 16 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: { fontSize: 16, fontWeight: '700' },
-  sectionSub: { fontSize: 12 },
-  statsRow: { flexDirection: 'row', gap: 10 },
+  sectionTitle: { fontSize: 17, fontFamily: FBB },
+  sectionSub: { fontSize: 12, fontFamily: FB },
 
-  // Progress card
-  progressCard: { borderRadius: 20, borderWidth: 0.5, padding: 16, gap: 16 },
-  exSelector: { gap: 8, paddingBottom: 4 },
-  exChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5 },
-  exChipDot: { width: 7, height: 7, borderRadius: 4 },
-  exChipText: { fontSize: 12, fontWeight: '600', maxWidth: 120 },
-  exStatRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  exStatItem: { alignItems: 'center', gap: 2 },
-  exStatVal: { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
-  exStatLbl: { fontSize: 10, fontWeight: '600' },
+  // KPIs: un solo contenedor dividido por líneas
+  statsRow: { flexDirection: 'row', borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+  statsDivider: { width: 1, alignSelf: 'stretch', marginVertical: 14 },
 
-  // Tabla máximos
-  maxTable: { borderTopWidth: 0.5, paddingTop: 14, gap: 10 },
-  maxTableTitle: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 },
-  maxRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingBottom: 10, borderBottomWidth: 0.5 },
-  maxDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-  maxName: { flex: 1, fontSize: 13, fontWeight: '600' },
-  maxKg: { fontSize: 15, fontWeight: '800' },
+  // Progreso
+  progressCard: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 16 },
+  exSelector: { gap: 8, paddingBottom: 2 },
+  exChip: {
+    height: 34, justifyContent: 'center',
+    paddingHorizontal: 14, borderRadius: 99, borderWidth: 1,
+  },
+  exChipText: { fontSize: 13, fontFamily: FBB, maxWidth: 140 },
+  exStatRow: { flexDirection: 'row' },
+  exStatItem: { flex: 1, gap: 2 },
+  exStatVal: { fontSize: 28, lineHeight: 30, fontFamily: FC, fontVariant: ['tabular-nums'] },
+  exStatUnit: { fontSize: 14, fontFamily: FBB },
+  exStatLbl: { fontSize: 12, fontFamily: FB },
 
-  // Settings
-  settingsCard: { borderRadius: 20, borderWidth: 0.5, paddingHorizontal: 16, overflow: 'hidden' },
+  // Tabla de máximos
+  maxTable: { borderTopWidth: 1, paddingTop: 14 },
+  maxTableTitle: { fontSize: 12, fontFamily: FBB, marginBottom: 4 },
+  maxRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
+  maxName: { flex: 1, fontSize: 14, fontFamily: FBB },
+  maxKg: { fontSize: 16, fontFamily: FBB, fontVariant: ['tabular-nums'], textAlign: 'right' },
+  maxKgUnit: { fontSize: 12, fontFamily: FB },
 
-  // Empty
-  emptyCard: { borderRadius: 20, borderWidth: 0.5, padding: 32, alignItems: 'center', gap: 10 },
-  emptyTitle: { fontSize: 17, fontWeight: '700' },
-  emptySub: { fontSize: 13, textAlign: 'center', lineHeight: 18 },
+  // Ajustes
+  settingsCard: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 16, overflow: 'hidden' },
 
-  // Logout
-  logoutBtn: { borderRadius: 16, borderWidth: 1, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  logoutText: { fontSize: 15, fontWeight: '700' },
+  // Estado vacío: conserva el marco con un borde discontinuo
+  emptyCard: {
+    borderRadius: 14, borderWidth: 1, borderStyle: 'dashed',
+    paddingVertical: 28, paddingHorizontal: 24, alignItems: 'center', gap: 6,
+  },
+  emptyTitle: { fontSize: 16, fontFamily: FBB },
+  emptySub: { fontSize: 13, fontFamily: FB, textAlign: 'center', lineHeight: 18 },
 
-  version: { fontSize: 11, textAlign: 'center', marginBottom: 8, marginTop: 4 },
+  // Cerrar sesión
+  logoutBtn: {
+    borderRadius: 12, borderWidth: 1, minHeight: 48,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  logoutText: { fontSize: 15, fontFamily: FBB },
+
+  version: { fontSize: 12, fontFamily: FB, textAlign: 'center', marginTop: 16 },
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 24 },
-  modalCard: { borderRadius: 20, borderWidth: 0.5, padding: 24, gap: 16 },
-  modalTitle: { fontSize: 18, fontWeight: '700' },
-  modalInput: { borderWidth: 0.5, borderRadius: 12, padding: 14, fontSize: 15 },
+  modalCard: { borderRadius: 14, borderWidth: 1, padding: 20, gap: 16 },
+  modalTitle: { fontSize: 22, lineHeight: 24, fontFamily: FC },
+  modalInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, minHeight: 48, fontSize: 16, fontFamily: FB },
   modalBtns: { flexDirection: 'row', gap: 10 },
-  modalBtnCancel: { flex: 1, borderWidth: 0.5, borderRadius: 12, padding: 13, alignItems: 'center' },
-  modalBtnOk: { flex: 1, borderRadius: 12, padding: 13, alignItems: 'center' },
+  modalBtnCancel: { flex: 1, borderWidth: 1, borderRadius: 12, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  modalBtnOk: { flex: 1, borderRadius: 12, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
 });
