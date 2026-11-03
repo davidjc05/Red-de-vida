@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 from datetime import date
 
@@ -8,7 +8,7 @@ from datetime import date
 class UserCreate(BaseModel):
     name: str
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8, max_length=72)  # bcrypt solo usa 72 bytes
     age: Optional[int] = None
     weight_kg: Optional[float] = None
 

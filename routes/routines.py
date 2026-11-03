@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import date
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from database import get_db
-from models import Routine, User, RoutineExercise, Block, BlockExercise
+from models import Routine, User, RoutineExercise, Block, BlockExercise, Exercise
 from schemas import RoutineCreate, RoutineUpdate
 from permissions import require_admin, get_routine_or_403
 from auth.auth import get_current_user
@@ -17,9 +17,20 @@ router = APIRouter(prefix="/routines", tags=["Rutinas"])
 # SCHEMAS
 # ─────────────────────────────
 
+class BlockExerciseIn(BaseModel):
+    exerciseId: int
+    sets: int = Field(default=3, ge=1, le=100)
+    reps: int = Field(default=10, ge=1, le=1000)
+
+
+class BlockIn(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    exercises: List[BlockExerciseIn] = []
+
+
 class SaveRoutineFull(BaseModel):
-    name: str
-    blocks: List[dict]
+    name: str = Field(min_length=1, max_length=100)
+    blocks: List[BlockIn] = []
 
 
 # ─────────────────────────────
@@ -188,6 +199,14 @@ def update_full_routine(
     if current_user.role != "admin" and routine.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="No autorizado")
 
+    # Todos los ejercicios indicados deben existir (si no, 422 en vez de un 500 de la BD)
+    wanted = {ex.exerciseId for b in data.blocks for ex in b.exercises}
+    if wanted:
+        found = {i for (i,) in db.query(Exercise.id).filter(Exercise.id.in_(wanted)).all()}
+        missing = sorted(wanted - found)
+        if missing:
+            raise HTTPException(status_code=422, detail=f"Ejercicios inexistentes: {missing}")
+
     # 🔥 BORRADO SEGURO (sin joins)
     blocks = db.query(Block).filter(Block.routine_id == routine_id).all()
 
@@ -205,18 +224,18 @@ def update_full_routine(
     for block in data.blocks:
         db_block = Block(
             routine_id=routine_id,
-            name=block["name"]
+            name=block.name
         )
 
         db.add(db_block)
         db.flush()
 
-        for ex in block["exercises"]:
+        for ex in block.exercises:
             db.add(BlockExercise(
                 block_id=db_block.id,
-                exercise_id=ex["exerciseId"],
-                sets=3,
-                reps=10
+                exercise_id=ex.exerciseId,
+                sets=ex.sets,
+                reps=ex.reps
             ))
 
     db.commit()

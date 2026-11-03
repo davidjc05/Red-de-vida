@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
-from pydantic import BaseModel
+from typing import Literal
+from pydantic import BaseModel, Field
 
 from database import get_db
 from models import (
@@ -26,14 +27,14 @@ router = APIRouter(prefix="/assignments", tags=["assignments"])
 # ─────────────────────────────────────────
 
 class ConfirmWorkoutSchema(BaseModel):
-    status: str
+    status: Literal["confirmed", "declined"]
 
 
 class WorkoutLogSchema(BaseModel):
     assignment_id: int
     exercise_id: int
-    kg: float
-    reps: int
+    kg: float = Field(ge=0, le=1000)
+    reps: int = Field(ge=0, le=1000)
 
 
 # ─────────────────────────────────────────
