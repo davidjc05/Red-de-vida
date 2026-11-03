@@ -46,7 +46,7 @@ export default function LoginScreen() {
 
   return (
     <ImageBackground
-      source={require('../../assets/images/fondoLoginyRegistro.png')}
+      source={require('../../assets/images/fondoLoginyRegistro.webp')}
       style={s.bg}
       resizeMode="cover"
     >

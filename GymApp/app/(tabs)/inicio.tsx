@@ -194,7 +194,7 @@ export default function HomeScreen() {
 
         {/* ── Hero con fondo ── */}
         <ImageBackground
-          source={require('../../assets/images/fondoInicio.png')}
+          source={require('../../assets/images/fondoInicio.webp')}
           style={s.hero}
           imageStyle={{ borderBottomLeftRadius: 28, borderBottomRightRadius: 28 }}
           resizeMode="cover"
