@@ -8,6 +8,8 @@ import {
   CalendarDays,
   Dumbbell,
   Repeat,
+  Activity,
+  User,
 } from 'lucide-react-native';
 
 export default function TabsLayout() {
@@ -84,9 +86,12 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="inicio"
         options={{
           title: 'Inicio',
+          tabBarIcon: ({ color }) => (
+            <House size={20} color={color} />
+          ),
         }}
       />
 
@@ -114,6 +119,9 @@ export default function TabsLayout() {
         name="activity"
         options={{
           title: 'Actividad',
+          tabBarIcon: ({ color }) => (
+            <Activity size={20} color={color} />
+          ),
         }}
       />
 
@@ -132,6 +140,9 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Perfil',
+          tabBarIcon: ({ color }) => (
+            <User size={20} color={color} />
+          ),
         }}
       />
     </Tabs>

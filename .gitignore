@@ -1,20 +1,20 @@
 # Python
 __pycache__/
 *.pyc
-
-# Env
-.env
-
-# Virtual env
+.venv/
 venv/
 
-# DB local
+# Entorno y secretos
+.env
+.env.*
+!.env.example
+
+# Base de datos local
 *.db
 
-# OS
+# Expo
+.expo/
+
+# Sistema
 .DS_Store
 Thumbs.db
-.venv/
-__pycache__/
-*.pyc
-.env

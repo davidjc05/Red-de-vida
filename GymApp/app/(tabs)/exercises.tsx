@@ -5,7 +5,7 @@ import {
   TouchableOpacity, SafeAreaView,
   Modal, ScrollView, Image, Linking,Platform,
 } from 'react-native';
-import { getExercises, createExercise, getRole } from '../../services/api';
+import { getExercises, createExercise, updateExercise, deleteExercise, getRole } from '../../services/api';
 
 const G = {
   primary:     '#3B6D11',
@@ -221,28 +221,13 @@ const ExerciseEditModal = ({ exercise, onClose, onSaved }: EditModalProps) => {
     if (!form.name.trim()) { Alert.alert('Error', 'El nombre es obligatorio'); return; }
     setSaving(true);
     try {
-      // PATCH /exercises/{id}
-      const { API_URL, getToken } = require('../../services/api');
-      const token = await getToken();
-      const res = await fetch(`${API_URL}/exercises/${exercise.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          name:         form.name.trim(),
-          muscle_group: form.muscle_group,
-          description:  form.description.trim() || null,
-          image_url:    form.image_url.trim()   || null,
-          video_url:    form.video_url.trim()   || null,
-        }),
+      await updateExercise(exercise.id, {
+        name:         form.name.trim(),
+        muscle_group: form.muscle_group,
+        description:  form.description.trim() || null,
+        image_url:    form.image_url.trim()   || null,
+        video_url:    form.video_url.trim()   || null,
       });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.detail || 'Error al guardar');
-      }
       onSaved();
       onClose();
     } catch (e: any) {
@@ -380,24 +365,7 @@ export default function ExercisesScreen() {
 
     const borrar = async () => {
       try {
-        const { API_URL, getToken } = require('../../services/api');
-        const token = await getToken();
-
-
-        const res = await fetch(`${API_URL}/exercises/${exercise.id}`, {
-          method: 'DELETE',
-          headers: {
-            'ngrok-skip-browser-warning': 'true',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
-
-        const text = await res.text();
-
-
-        if (!res.ok) {
-          throw new Error(text || "Error al eliminar");
-        }
+        await deleteExercise(exercise.id);
 
         await load(filter);
       } catch (e: any) {

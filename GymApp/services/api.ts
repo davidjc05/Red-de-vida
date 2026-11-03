@@ -153,37 +153,51 @@ export async function getUsers() {
 // ── EJERCICIOS ────────────────────────────────────────────────
 export async function getExercises(muscleGroup?: string) {
   const query = muscleGroup ? `?muscle_group=${encodeURIComponent(muscleGroup)}` : '';
-  const res = await authFetch(`/exercises/${query}`);
+  const res = await authFetch(`/exercises${query}`);
   const data = await res.json();
   if (!res.ok) throw new Error(data.detail || 'Error al cargar ejercicios');
   return data;
 }
-export async function createExercise(exercise: {
+type ExerciseInput = {
   name: string;
   muscle_group: string;
-  description?: string;
-  image_url?: string;
-  video_url?: string;
-}) {
-  const token = await getToken();
+  description?: string | null;
+  image_url?: string | null;
+  video_url?: string | null;
+};
 
-  const res = await fetch(`${API_URL}/exercises`, {
+async function readError(res: Response, fallback: string) {
+  const text = await res.text();
+  try {
+    const data = JSON.parse(text);
+    return typeof data.detail === 'string' ? data.detail : fallback;
+  } catch {
+    return text || fallback;
+  }
+}
+
+export async function createExercise(exercise: ExerciseInput) {
+  const res = await authFetch('/exercises', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
     body: JSON.stringify(exercise),
   });
+  if (!res.ok) throw new Error(await readError(res, 'Error creando ejercicio'));
+  return res.json();
+}
 
-  const text = await res.text();
+export async function updateExercise(id: number, exercise: Partial<ExerciseInput>) {
+  const res = await authFetch(`/exercises/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(exercise),
+  });
+  if (!res.ok) throw new Error(await readError(res, 'Error al guardar'));
+  return res.json();
+}
 
-  if (!res.ok) {
-    throw new Error(text || 'Error creando ejercicio');
-  }
-
-  return text ? JSON.parse(text) : null;
+export async function deleteExercise(id: number) {
+  const res = await authFetch(`/exercises/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await readError(res, 'Error al eliminar'));
+  return true;
 }
 
 // ── RUTINAS ───────────────────────────────────────────────────
