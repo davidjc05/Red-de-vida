@@ -1,10 +1,11 @@
 from fastapi import FastAPI
-from database import engine, Base
+from database import engine, Base, ensure_user_columns
 from routes import assignments, users, exercises, routines, auth
 from fastapi.middleware.cors import CORSMiddleware
 from routes import routines
 # Crea todas las tablas en la base de datos al arrancar
 Base.metadata.create_all(bind=engine)
+ensure_user_columns(engine)  # añade columnas nuevas a users si faltan
 
 app = FastAPI(
     title="Gym API",

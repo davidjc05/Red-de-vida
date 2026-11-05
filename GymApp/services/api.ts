@@ -122,16 +122,60 @@ export async function login(email: string, password: string) {
   return data;
 }
 
-export async function register(name: string, email: string, password: string) {
+// Los errores de validación (422) traen `detail` como lista: la convertimos en texto
+function detailToText(detail: any, fallback: string): string {
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    const msgs = detail.map((d: any) => d?.msg).filter(Boolean);
+    if (msgs.length) return msgs.join('. ');
+  }
+  return fallback;
+}
+
+export type ProfileFields = {
+  phone?: string;
+  country?: string;
+  city?: string;
+  birth_date?: string | null; // AAAA-MM-DD
+};
+
+export async function register(
+  name: string,
+  email: string,
+  password: string,
+  extra: ProfileFields = {},
+) {
   const res = await fetch(`${API_URL}/auth/register`, {
     method: 'POST',
     headers: COMMON_HEADERS,
-    body: JSON.stringify({ name, email, password }),
+    body: JSON.stringify({ name, email, password, ...extra }),
   });
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Error al registrarse');
+  if (!res.ok) throw new Error(detailToText(data.detail, 'Error al registrarse'));
 
+  return data;
+}
+
+// El propio usuario edita su perfil
+export async function updateMe(fields: ProfileFields & { name?: string; weight_kg?: number }) {
+  const res = await authFetch('/auth/me', {
+    method: 'PATCH',
+    body: JSON.stringify(fields),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(detailToText(data.detail, 'No se pudo guardar el perfil'));
+  return data;
+}
+
+// Entrenador: aprobar un alta, cancelar la suscripción o reactivarla
+export async function setUserStatus(id: number, status: 'active' | 'suspended') {
+  const res = await authFetch(`/users/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(detailToText(data.detail, 'No se pudo cambiar el estado'));
   return data;
 }
 

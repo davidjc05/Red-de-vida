@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
   StyleSheet,
   ImageBackground,
   Image,
@@ -17,6 +16,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { login, getRole, homeFor } from '../../services/api';
+import { notify } from '../../services/ui';
 
 const { width, height } = Dimensions.get('window');
 
@@ -29,7 +29,7 @@ export default function LoginScreen() {
 
   async function handleLogin() {
     if (!email || !password) {
-      Alert.alert('Error', 'Rellena todos los campos');
+      notify('Error', 'Rellena todos los campos');
       return;
     }
     setLoading(true);
@@ -38,7 +38,7 @@ export default function LoginScreen() {
       const role = await getRole();
       router.replace(homeFor(role));
     } catch (e: any) {
-      Alert.alert('Error de acceso', e?.message || 'Error desconocido');
+      notify('Error de acceso', e?.message || 'Error desconocido');
     } finally {
       setLoading(false);
     }

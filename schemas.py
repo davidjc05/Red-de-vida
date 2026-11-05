@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 from datetime import date
+from pydantic import field_validator
 
 
 # ─── USER ─────────────────────────────────
@@ -11,15 +12,48 @@ class UserCreate(BaseModel):
     password: str = Field(min_length=8, max_length=72)  # bcrypt solo usa 72 bytes
     age: Optional[int] = None
     weight_kg: Optional[float] = None
+    phone: Optional[str] = Field(default=None, max_length=30)
+    country: Optional[str] = Field(default=None, max_length=60)
+    city: Optional[str] = Field(default=None, max_length=60)
+    birth_date: Optional[date] = None
+
+    @field_validator("birth_date")
+    @classmethod
+    def _birth_ok(cls, v):
+        if v is not None and not (date(1900, 1, 1) <= v <= date.today()):
+            raise ValueError("Fecha de nacimiento no válida")
+        return v
+
+
+class UserUpdate(BaseModel):
+    """Datos que el propio usuario puede modificar en su perfil."""
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    phone: Optional[str] = Field(default=None, max_length=30)
+    country: Optional[str] = Field(default=None, max_length=60)
+    city: Optional[str] = Field(default=None, max_length=60)
+    birth_date: Optional[date] = None
+    weight_kg: Optional[float] = Field(default=None, gt=0, le=500)
+
+    @field_validator("birth_date")
+    @classmethod
+    def _birth_ok(cls, v):
+        if v is not None and not (date(1900, 1, 1) <= v <= date.today()):
+            raise ValueError("Fecha de nacimiento no válida")
+        return v
 
 
 class UserOut(BaseModel):
     id: int
     name: str
     email: EmailStr
-    age: Optional[int]
-    weight_kg: Optional[float]
+    age: Optional[int] = None
+    weight_kg: Optional[float] = None
     role: str
+    phone: Optional[str] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    birth_date: Optional[date] = None
+    status: str = "active"
 
     class Config:
         from_attributes = True

@@ -76,6 +76,15 @@ def get_current_user(
     if user is None:
         raise credentials_exception
 
+    # Un cliente pendiente o con la suscripción cancelada pierde el acceso al instante,
+    # aunque conserve un token válido. El entrenador (admin) nunca se bloquea.
+    if user.role != "admin" and user.status != "active":
+        raise HTTPException(
+            status_code=401,
+            detail="Cuenta no activa",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return user
 
 # ─── SOLO ADMIN ─────────────────────────────────────────

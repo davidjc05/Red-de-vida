@@ -19,6 +19,14 @@ class User(Base):
     hashed_password  = Column(String, nullable=False)
     role             = Column(String, default="user", nullable=False)
 
+    # Datos de contacto (opcionales) y estado de la cuenta.
+    # status: "pending" (alta sin aprobar) | "active" | "suspended" (suscripción cancelada)
+    phone            = Column(String, nullable=True)
+    country          = Column(String, nullable=True)
+    city             = Column(String, nullable=True)
+    birth_date       = Column(Date, nullable=True)
+    status           = Column(String, default="active", nullable=False, server_default="active")
+
     routines             = relationship("Routine", back_populates="user")
     assignments_received = relationship("Assignment", foreign_keys="Assignment.assigned_to_id", back_populates="assigned_to")
     assignments_sent     = relationship("Assignment", foreign_keys="Assignment.assigned_by_id", back_populates="assigned_by")

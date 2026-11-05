@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, KeyboardAvoidingView,
-  Platform, ScrollView, Alert, ImageBackground, Image,
+  Platform, ScrollView, ImageBackground, Image,
   Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
-import { register, login } from '../../services/api';
+import { register, login, getRole, homeFor } from '../../services/api';
+import { notify } from '../../services/ui';
+import { parseBirth } from '../../services/dates';
 
 const { width, height } = Dimensions.get('window');
 
@@ -34,6 +36,10 @@ export default function RegisterScreen() {
   const [showPw, setShowPw]     = useState(false);
   const [showPw2, setShowPw2]   = useState(false);
   const [loading, setLoading]   = useState(false);
+  const [phone, setPhone]       = useState('');
+  const [country, setCountry]   = useState('');
+  const [city, setCity]         = useState('');
+  const [birth, setBirth]       = useState('');
 
   const strength = getPasswordStrength(password);
   const passwordsMatch   = password2.length > 0 && password === password2;
@@ -41,24 +47,45 @@ export default function RegisterScreen() {
 
   async function handleRegister() {
     if (!name || !email || !password || !password2) {
-      Alert.alert('Error', 'Rellena todos los campos');
+      notify('Error', 'Rellena todos los campos');
       return;
     }
     if (password !== password2) {
-      Alert.alert('Error', 'Las contraseñas no coinciden');
+      notify('Error', 'Las contraseñas no coinciden');
       return;
     }
     if (password.length < 8) {
-      Alert.alert('Error', 'La contraseña debe tener al menos 8 caracteres');
+      notify('Error', 'La contraseña debe tener al menos 8 caracteres');
+      return;
+    }
+    const birthIso = parseBirth(birth);
+    if (birthIso === 'invalid') {
+      notify('Fecha no válida', 'Escríbela como DD/MM/AAAA, por ejemplo 17/05/1990');
       return;
     }
     setLoading(true);
     try {
-      await register(name.trim(), email.trim(), password);
+      const created = await register(name.trim(), email.trim(), password, {
+        phone: phone.trim() || undefined,
+        country: country.trim() || undefined,
+        city: city.trim() || undefined,
+        birth_date: birthIso,
+      });
+
+      // Los clientes nuevos esperan a que el entrenador apruebe su cuenta
+      if (created?.status === 'pending') {
+        notify(
+          'Cuenta creada',
+          'Tu entrenador debe aprobar tu cuenta antes de que puedas entrar. Cuando lo haga podrás iniciar sesión con tu email y contraseña.',
+        );
+        router.replace('/auth/login');
+        return;
+      }
+
       await login(email.trim(), password);
-      router.replace('/(tabs)/inicio');
+      router.replace(homeFor(await getRole()));
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      notify('Error', e.message);
     } finally {
       setLoading(false);
     }
@@ -125,6 +152,62 @@ export default function RegisterScreen() {
                 autoCorrect={false}
                 value={email}
                 onChangeText={setEmail}
+              />
+            </View>
+
+            {/* TELÉFONO (OPCIONAL) */}
+            <Text style={s.fieldLabel}>Teléfono (opcional)</Text>
+            <View style={s.inputWrap}>
+              <Text style={s.inputIcon}>📞</Text>
+              <TextInput
+                style={s.input}
+                placeholder="600 123 456"
+                placeholderTextColor="rgba(59,109,17,0.45)"
+                keyboardType="phone-pad"
+                value={phone}
+                onChangeText={setPhone}
+              />
+            </View>
+
+            {/* PAÍS (OPCIONAL) */}
+            <Text style={s.fieldLabel}>País (opcional)</Text>
+            <View style={s.inputWrap}>
+              <Text style={s.inputIcon}>🌍</Text>
+              <TextInput
+                style={s.input}
+                placeholder="España"
+                placeholderTextColor="rgba(59,109,17,0.45)"
+                autoCapitalize="words"
+                value={country}
+                onChangeText={setCountry}
+              />
+            </View>
+
+            {/* CIUDAD (OPCIONAL) */}
+            <Text style={s.fieldLabel}>Ciudad (opcional)</Text>
+            <View style={s.inputWrap}>
+              <Text style={s.inputIcon}>🏙️</Text>
+              <TextInput
+                style={s.input}
+                placeholder="Madrid"
+                placeholderTextColor="rgba(59,109,17,0.45)"
+                autoCapitalize="words"
+                value={city}
+                onChangeText={setCity}
+              />
+            </View>
+
+            {/* FECHA DE NACIMIENTO (OPCIONAL) */}
+            <Text style={s.fieldLabel}>Fecha de nacimiento (opcional)</Text>
+            <View style={s.inputWrap}>
+              <Text style={s.inputIcon}>🎂</Text>
+              <TextInput
+                style={s.input}
+                placeholder="DD/MM/AAAA"
+                placeholderTextColor="rgba(59,109,17,0.45)"
+                keyboardType="numbers-and-punctuation"
+                value={birth}
+                onChangeText={setBirth}
               />
             </View>
 

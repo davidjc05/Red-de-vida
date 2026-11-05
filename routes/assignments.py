@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from typing import Literal
 from pydantic import BaseModel, Field
 
@@ -95,7 +95,7 @@ def my_assignments(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    assignments = (
+    query = (
         db.query(Assignment)
         .options(
             joinedload(Assignment.routine)
@@ -106,8 +106,17 @@ def my_assignments(
             joinedload(Assignment.assigned_by),
         )
         .filter(Assignment.assigned_to_id == current_user.id)
-        .all()
     )
+
+    # Los clientes solo ven las rutinas del mes en curso. Al cambiar de mes dejan de
+    # aparecer, pero NO se borran (se conservan los registros y el historial).
+    if current_user.role != "admin":
+        today = date.today()
+        month_start = today.replace(day=1)
+        next_month = (month_start + timedelta(days=32)).replace(day=1)
+        query = query.filter(Assignment.date >= month_start, Assignment.date < next_month)
+
+    assignments = query.all()
 
     result = []
 

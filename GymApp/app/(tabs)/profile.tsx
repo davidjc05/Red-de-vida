@@ -12,7 +12,11 @@ import {
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
-import { getMe, deleteToken, getMyWorkoutLogs } from '../../services/api';
+import {
+  getMe, deleteToken, getMyWorkoutLogs, getUsers, updateMe, setUserStatus,
+} from '../../services/api';
+import { notify, confirmAction } from '../../services/ui';
+import { parseBirth, formatBirth, ageFrom } from '../../services/dates';
 
 const { width } = Dimensions.get('window');
 
@@ -224,6 +228,42 @@ const sr = StyleSheet.create({
   sub:   { fontSize: 12, fontFamily: FB, marginTop: 2 },
 });
 
+// ─── Piezas de formulario (fuera de la pantalla para que el teclado no se cierre al escribir) ───
+type Pal = ReturnType<typeof makePalette>;
+
+function InfoRow({ C, label, value, last }: { C: Pal; label: string; value?: string | null; last?: boolean }) {
+  return (
+    <View style={[s.infoRow, { borderBottomColor: C.border, borderBottomWidth: last ? 0 : 1 }]}>
+      <Text style={[s.infoLabel, { color: C.textSub }]}>{label}</Text>
+      <Text style={[s.infoValue, { color: value ? C.text : C.textSub }]} numberOfLines={2}>
+        {value || 'Sin indicar'}
+      </Text>
+    </View>
+  );
+}
+
+function FormField({
+  C, label, value, onChange, placeholder, keyboardType, autoCapitalize,
+}: {
+  C: Pal; label: string; value: string; onChange: (v: string) => void;
+  placeholder?: string; keyboardType?: any; autoCapitalize?: any;
+}) {
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={[s.fieldLabel, { color: C.textSub }]}>{label}</Text>
+      <TextInput
+        style={[s.modalInput, { color: C.text, borderColor: C.border, backgroundColor: C.bg }]}
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor={C.textSub}
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+      />
+    </View>
+  );
+}
+
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const isDark = useColorScheme() === 'dark';
@@ -240,6 +280,14 @@ export default function ProfileScreen() {
   const [editModal, setEditModal] = useState(false);
   const [editName, setEditName] = useState('');
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
+  const [editPhone, setEditPhone] = useState('');
+  const [editCountry, setEditCountry] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [editBirth, setEditBirth] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [clients, setClients] = useState<any[]>([]);
+  const [selectedClient, setSelectedClient] = useState<any>(null);
+  const [statusBusy, setStatusBusy] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -251,6 +299,12 @@ export default function ProfileScreen() {
       const me = await getMe();
       setUser(me);
       setEditName(me?.name ?? '');
+      if (me?.role === 'admin') {
+        try {
+          const all = await getUsers();
+          setClients((all ?? []).filter((u: any) => u.role !== 'admin'));
+        } catch { setClients([]); }
+      }
       try {
         const logsData = await getMyWorkoutLogs();
         setLogs(logsData ?? []);
@@ -295,14 +349,68 @@ export default function ProfileScreen() {
     if (!result.canceled) setPhotoUri(result.assets[0].uri);
   };
 
+  const openEdit = () => {
+    setEditName(user?.name ?? '');
+    setEditPhone(user?.phone ?? '');
+    setEditCountry(user?.country ?? '');
+    setEditCity(user?.city ?? '');
+    setEditBirth(formatBirth(user?.birth_date));
+    setEditModal(true);
+  };
+
+  const saveProfile = async () => {
+    if (!editName.trim()) { notify('Falta el nombre', 'El nombre no puede estar vacío'); return; }
+    const birth = parseBirth(editBirth);
+    if (birth === 'invalid') {
+      notify('Fecha no válida', 'Escríbela como DD/MM/AAAA, por ejemplo 17/05/1990');
+      return;
+    }
+    setSaving(true);
+    try {
+      const updated = await updateMe({
+        name: editName.trim(),
+        phone: editPhone.trim(),
+        country: editCountry.trim(),
+        city: editCity.trim(),
+        birth_date: birth,
+      });
+      setUser(updated);
+      setEditModal(false);
+      notify('Perfil actualizado');
+    } catch (e: any) {
+      notify('Error', e?.message ?? 'No se pudo guardar');
+    } finally { setSaving(false); }
+  };
+
+  const changeStatus = (client: any, next: 'active' | 'suspended') => {
+    const run = async () => {
+      setStatusBusy(true);
+      try {
+        const updated = await setUserStatus(client.id, next);
+        setClients(prev => prev.map(c => (c.id === updated.id ? updated : c)));
+        setSelectedClient(updated);
+      } catch (e: any) {
+        notify('Error', e?.message ?? 'No se pudo cambiar el estado');
+      } finally { setStatusBusy(false); }
+    };
+    if (next === 'suspended') {
+      confirmAction(
+        'Cancelar suscripción',
+        `${client.name} no podrá entrar en la app hasta que la reactives.`,
+        'Cancelar suscripción',
+        run,
+        true,
+      );
+    } else {
+      run();
+    }
+  };
+
   const handleLogout = () => {
-    Alert.alert('Cerrar sesión', '¿Seguro que quieres salir?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Salir', style: 'destructive', onPress: async () => {
-        await deleteToken();
-        router.replace('/auth/login');
-      }},
-    ]);
+    confirmAction('Cerrar sesión', '¿Seguro que quieres salir?', 'Salir', async () => {
+      await deleteToken();
+      router.replace('/auth/login');
+    }, true);
   };
 
   if (loading) {
@@ -319,37 +427,115 @@ export default function ProfileScreen() {
   const negative = isDark ? '#E5566F' : P.red;
   const isAdmin = user?.role === 'admin';
 
+  const STATUS_INFO: Record<string, { label: string; bg: string; fg: string }> = {
+    active:    { label: 'Activo',    bg: '#DCFCE7', fg: '#166534' },
+    pending:   { label: 'Pendiente', bg: '#FEF3C7', fg: '#92400E' },
+    suspended: { label: 'Cancelado', bg: '#FEE2E2', fg: '#991B1B' },
+  };
+  const statusOrder: Record<string, number> = { pending: 0, active: 1, suspended: 2 };
+  const sortedClients = [...clients].sort(
+    (a, b) =>
+      (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) ||
+      String(a.name).localeCompare(String(b.name)),
+  );
+  const countBy = (st: string) => clients.filter(c => c.status === st).length;
+
+
   return (
     <SafeAreaView style={[s.container, { backgroundColor: C.bg }]} edges={['top']}>
 
-      {/* ── Modal editar nombre ── */}
+      {/* ── Modal editar perfil ── */}
       <Modal visible={editModal} transparent animationType="slide">
         <View style={s.modalOverlay}>
-          <View style={[s.modalCard, { backgroundColor: C.surface, borderColor: C.border }]}>
-            <Text style={[s.modalTitle, { color: C.text }]}>Editar nombre</Text>
-            <TextInput
-              style={[s.modalInput, { color: C.text, borderColor: C.border, backgroundColor: C.bg }]}
-              value={editName}
-              onChangeText={setEditName}
-              autoFocus
-              placeholder="Tu nombre"
-              placeholderTextColor={C.textSub}
-            />
+          <View style={[s.modalCard, { backgroundColor: C.surface, borderColor: C.border, maxHeight: '88%' }]}>
+            <Text style={[s.modalTitle, { color: C.text }]}>Editar perfil</Text>
+            <ScrollView contentContainerStyle={{ gap: 12 }} keyboardShouldPersistTaps="handled">
+              <FormField C={C} label="Nombre" value={editName} onChange={setEditName} placeholder="Tu nombre" autoCapitalize="words" />
+              <FormField C={C} label="Teléfono" value={editPhone} onChange={setEditPhone} placeholder="600 123 456" keyboardType="phone-pad" />
+              <FormField C={C} label="País" value={editCountry} onChange={setEditCountry} placeholder="España" autoCapitalize="words" />
+              <FormField C={C} label="Ciudad" value={editCity} onChange={setEditCity} placeholder="Madrid" autoCapitalize="words" />
+              <FormField C={C} label="Fecha de nacimiento" value={editBirth} onChange={setEditBirth} placeholder="DD/MM/AAAA" keyboardType="numbers-and-punctuation" />
+            </ScrollView>
             <View style={s.modalBtns}>
-              <TouchableOpacity style={[s.modalBtnCancel, { borderColor: C.border }]} onPress={() => setEditModal(false)}>
+              <TouchableOpacity style={[s.modalBtnCancel, { borderColor: C.border }]} onPress={() => setEditModal(false)} disabled={saving}>
                 <Text style={{ color: C.textSub, fontFamily: FBB, fontSize: 15 }}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[s.modalBtnOk, { backgroundColor: Colors.primary }]}
-                onPress={() => {
-                  setUser((p: any) => ({ ...p, name: editName }));
-                  setEditModal(false);
-                  Alert.alert('Nombre actualizado');
-                }}
+                style={[s.modalBtnOk, { backgroundColor: Colors.primary, opacity: saving ? 0.6 : 1 }]}
+                onPress={saveProfile}
+                disabled={saving}
               >
-                <Text style={{ color: '#fff', fontFamily: FBB, fontSize: 15 }}>Guardar</Text>
+                {saving
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={{ color: '#fff', fontFamily: FBB, fontSize: 15 }}>Guardar</Text>}
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Ficha de cliente (entrenador) ── */}
+      <Modal visible={!!selectedClient} transparent animationType="slide" onRequestClose={() => setSelectedClient(null)}>
+        <View style={s.modalOverlay}>
+          <View style={[s.modalCard, { backgroundColor: C.surface, borderColor: C.border, maxHeight: '88%' }]}>
+            {selectedClient && (() => {
+              const st = STATUS_INFO[selectedClient.status] ?? STATUS_INFO.active;
+              const age = ageFrom(selectedClient.birth_date);
+              return (
+                <>
+                  <View style={{ gap: 6 }}>
+                    <Text style={[s.modalTitle, { color: C.text }]} numberOfLines={2}>{selectedClient.name}</Text>
+                    <View style={[s.statusPill, { backgroundColor: st.bg, alignSelf: 'flex-start' }]}>
+                      <Text style={[s.statusPillText, { color: st.fg }]}>{st.label}</Text>
+                    </View>
+                  </View>
+                  <ScrollView>
+                    <InfoRow C={C} label="Correo" value={selectedClient.email} />
+                    <InfoRow C={C} label="Teléfono" value={selectedClient.phone} />
+                    <InfoRow C={C} label="País" value={selectedClient.country} />
+                    <InfoRow C={C} label="Ciudad" value={selectedClient.city} />
+                    <InfoRow
+                      C={C}
+                      label="Fecha de nacimiento"
+                      value={selectedClient.birth_date
+                        ? `${formatBirth(selectedClient.birth_date)}${age !== null ? ` (${age} años)` : ''}`
+                        : null}
+                      last
+                    />
+                  </ScrollView>
+                  {selectedClient.status === 'pending' && (
+                    <TouchableOpacity
+                      style={[s.modalBtnOk, { backgroundColor: Colors.primary, opacity: statusBusy ? 0.6 : 1 }]}
+                      onPress={() => changeStatus(selectedClient, 'active')}
+                      disabled={statusBusy}
+                    >
+                      <Text style={{ color: '#fff', fontFamily: FBB, fontSize: 15 }}>Aprobar alta</Text>
+                    </TouchableOpacity>
+                  )}
+                  {selectedClient.status === 'active' && (
+                    <TouchableOpacity
+                      style={[s.modalBtnCancel, { borderColor: negative, opacity: statusBusy ? 0.6 : 1 }]}
+                      onPress={() => changeStatus(selectedClient, 'suspended')}
+                      disabled={statusBusy}
+                    >
+                      <Text style={{ color: negative, fontFamily: FBB, fontSize: 15 }}>Cancelar suscripción</Text>
+                    </TouchableOpacity>
+                  )}
+                  {selectedClient.status === 'suspended' && (
+                    <TouchableOpacity
+                      style={[s.modalBtnOk, { backgroundColor: Colors.primary, opacity: statusBusy ? 0.6 : 1 }]}
+                      onPress={() => changeStatus(selectedClient, 'active')}
+                      disabled={statusBusy}
+                    >
+                      <Text style={{ color: '#fff', fontFamily: FBB, fontSize: 15 }}>Reactivar suscripción</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity style={[s.modalBtnCancel, { borderColor: C.border }]} onPress={() => setSelectedClient(null)}>
+                    <Text style={{ color: C.textSub, fontFamily: FBB, fontSize: 15 }}>Cerrar</Text>
+                  </TouchableOpacity>
+                </>
+              );
+            })()}
           </View>
         </View>
       </Modal>
@@ -387,9 +573,9 @@ export default function ProfileScreen() {
 
           <View style={s.heroInfo}>
             <TouchableOpacity
-              onPress={() => setEditModal(true)}
+              onPress={openEdit}
               style={s.nameRow}
-              accessibilityLabel="Editar nombre"
+              accessibilityLabel="Editar perfil"
             >
               <Text style={[s.heroName, { color: C.text }]} numberOfLines={1}>{user?.name ?? 'Usuario'}</Text>
               <Pencil size={14} color={C.textSub} />
@@ -410,6 +596,78 @@ export default function ProfileScreen() {
         </View>
 
         {/* ════════════════════════════
+            DATOS PERSONALES
+        ════════════════════════════ */}
+        <View style={[s.section, { paddingHorizontal: 16, marginTop: 20 }]}>
+          <View style={s.sectionHeader}>
+            <Text style={[s.sectionTitle, { color: C.text }]}>Mis datos</Text>
+            <TouchableOpacity onPress={openEdit} accessibilityLabel="Editar mis datos">
+              <Text style={{ color: Colors.primary, fontFamily: FBB, fontSize: 14 }}>Editar</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={[s.settingsCard, { backgroundColor: C.surface, borderColor: C.border }]}>
+            <InfoRow C={C} label="Correo" value={user?.email} />
+            <InfoRow C={C} label="Teléfono" value={user?.phone} />
+            <InfoRow C={C} label="País" value={user?.country} />
+            <InfoRow C={C} label="Ciudad" value={user?.city} />
+            <InfoRow
+              C={C}
+              label="Fecha de nacimiento"
+              value={user?.birth_date ? formatBirth(user.birth_date) : null}
+              last
+            />
+          </View>
+        </View>
+
+        {isAdmin && (
+          <View style={[s.section, { paddingHorizontal: 16 }]}>
+            <View style={s.sectionHeader}>
+              <Text style={[s.sectionTitle, { color: C.text }]}>Clientes</Text>
+              <Text style={[s.sectionSub, { color: C.textSub }]}>
+                {countBy('active')} activos · {countBy('pending')} pendientes · {countBy('suspended')} cancelados
+              </Text>
+            </View>
+
+            <View style={[s.statsRow, { backgroundColor: C.surface, borderColor: C.border }]}>
+              <StatCard icon="" value={String(clients.length)} label="Total de clientes" color={Colors.primary} isDark={isDark} />
+            </View>
+
+            {sortedClients.length === 0 ? (
+              <View style={[s.emptyCard, { borderColor: C.border }]}>
+                <Text style={[s.emptyTitle, { color: C.text }]}>Aún no tienes clientes</Text>
+                <Text style={[s.emptySub, { color: C.textSub }]}>
+                  Cuando alguien se registre con tu enlace aparecerá aquí para que apruebes su alta
+                </Text>
+              </View>
+            ) : (
+              <View style={[s.settingsCard, { backgroundColor: C.surface, borderColor: C.border }]}>
+                {sortedClients.map((c, i) => {
+                  const st = STATUS_INFO[c.status] ?? STATUS_INFO.active;
+                  return (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={[s.clientRow, { borderBottomColor: C.border, borderBottomWidth: i === sortedClients.length - 1 ? 0 : 1 }]}
+                      onPress={() => setSelectedClient(c)}
+                      activeOpacity={0.7}
+                      accessibilityLabel={`Ver datos de ${c.name}`}
+                    >
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={[s.clientName, { color: C.text }]} numberOfLines={1}>{c.name}</Text>
+                        <Text style={[s.clientEmail, { color: C.textSub }]} numberOfLines={1}>{c.email}</Text>
+                      </View>
+                      <View style={[s.statusPill, { backgroundColor: st.bg }]}>
+                        <Text style={[s.statusPillText, { color: st.fg }]}>{st.label}</Text>
+                      </View>
+                      <ChevronRight size={16} color={C.textSub} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ════════════════════════════
             RESUMEN
         ════════════════════════════ */}
         <View style={[s.section, { paddingHorizontal: 16, marginTop: 20 }]}>
@@ -423,6 +681,8 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {!isAdmin && (
+        <>
         {/* ════════════════════════════
             PROGRESO DE PESOS
         ════════════════════════════ */}
@@ -525,6 +785,9 @@ export default function ProfileScreen() {
             </View>
           )}
         </View>
+
+        </>
+        )}
 
         {/* ════════════════════════════
             AJUSTES
@@ -667,6 +930,17 @@ const s = StyleSheet.create({
   maxName: { flex: 1, fontSize: 14, fontFamily: FBB },
   maxKg: { fontSize: 16, fontFamily: FBB, fontVariant: ['tabular-nums'], textAlign: 'right' },
   maxKgUnit: { fontSize: 12, fontFamily: FB },
+
+  // Datos y clientes
+  fieldLabel: { fontSize: 12, fontFamily: FBB },
+  infoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, minHeight: 46, paddingVertical: 8 },
+  infoLabel: { fontSize: 13, fontFamily: FB },
+  infoValue: { fontSize: 14, fontFamily: FBB, flexShrink: 1, textAlign: 'right' },
+  clientRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 8 },
+  clientName: { fontSize: 15, fontFamily: FBB },
+  clientEmail: { fontSize: 12, fontFamily: FB },
+  statusPill: { paddingHorizontal: 10, height: 22, borderRadius: 99, justifyContent: 'center' },
+  statusPillText: { fontSize: 12, fontFamily: FBB },
 
   // Ajustes
   settingsCard: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 16, overflow: 'hidden' },
