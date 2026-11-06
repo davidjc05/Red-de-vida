@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Polyline } from 'react-native-svg';
 import { Colors } from '../../constants/colors';
 import RouteMap from '../../components/RouteMap';
+import { getMe, getRole, saveActivity, getClientActivities } from '../../services/api';
 
 const { width } = Dimensions.get('window');
 
@@ -19,7 +20,7 @@ const FBB = 'Barlow-Bold';
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 type Coord = { latitude: number; longitude: number };
 type ActivityState = 'idle' | 'running' | 'paused' | 'finished';
-type ActivityKind = 'run' | 'walk' | 'bike';
+type ActivityKind = 'run' | 'walk';
 type SavedActivity = {
   id: string; date: string; kind: ActivityKind;
   elapsed: number; distance: number; kcal: number; route: Coord[];
@@ -29,13 +30,12 @@ type SavedActivity = {
 const LOCATION_TASK = 'red-de-vida-activity-location';
 const STORAGE_KEY = 'red-de-vida:activities';
 const MAX_ACCURACY = 30;        // metros: se ignoran fixes de GPS peores que esto
-const DEFAULT_WEIGHT_KG = 70;   // TODO: sustituir por el peso real del perfil
+const DEFAULT_WEIGHT_KG = 70;   // se usa solo si el usuario no tiene peso en su perfil
 
 // GPS no sirve para natación, por eso solo hay actividades de superficie.
 const ACTIVITY_TYPES: { key: ActivityKind; label: string; kcalPerKgKm: number }[] = [
   { key: 'run',  label: 'Correr',  kcalPerKgKm: 1.0 },
   { key: 'walk', label: 'Caminar', kcalPerKgKm: 0.5 },
-  { key: 'bike', label: 'Bici',    kcalPerKgKm: 0.3 },
 ];
 
 // ─── Tarea de ubicación en segundo plano ──────────────────────────────────────
@@ -81,9 +81,9 @@ function formatPace(paceSecPerKm: number): string {
 }
 
 // Estimación de calorías: kcal/kg/km según actividad × peso. Es una aproximación.
-function estimateKcal(distanceM: number, kind: ActivityKind): number {
+function estimateKcal(distanceM: number, kind: ActivityKind, weightKg: number = DEFAULT_WEIGHT_KG): number {
   const k = ACTIVITY_TYPES.find(t => t.key === kind)?.kcalPerKgKm ?? 1;
-  return Math.round((distanceM / 1000) * k * DEFAULT_WEIGHT_KG);
+  return Math.round((distanceM / 1000) * k * weightKg);
 }
 
 // Reduce la ruta guardada para no llenar el almacenamiento.
@@ -149,7 +149,7 @@ const bm = StyleSheet.create({
 });
 
 // ─── Pantalla principal ───────────────────────────────────────────────────────
-export default function ActivityScreen() {
+function ClientActivity() {
   const isDark = useColorScheme() === 'dark';
 
   const C = {
@@ -170,6 +170,8 @@ export default function ActivityScreen() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [selectedKind, setSelectedKind] = useState<ActivityKind>('run');
   const [savedOk, setSavedOk] = useState<boolean | null>(null);
+  const [synced, setSynced] = useState<boolean | null>(null);
+  const [weightKg, setWeightKg] = useState<number>(DEFAULT_WEIGHT_KG);
   const [weekStats, setWeekStats] = useState({ count: 0, km: 0, kcal: 0 });
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -188,6 +190,13 @@ export default function ActivityScreen() {
   const paceSecPerKm = speed > 0.5 ? 1000 / speed : 0;
   const distanceKm = distance / 1000;
   const kindLabel = ACTIVITY_TYPES.find(t => t.key === selectedKind)?.label ?? '';
+
+  // Peso real del perfil para estimar las calorías
+  useEffect(() => {
+    getMe().then((me: any) => {
+      if (me?.weight_kg && me.weight_kg > 20) setWeightKg(me.weight_kg);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     requestPermissions();
@@ -215,6 +224,7 @@ export default function ActivityScreen() {
 
   const persistActivity = async (finalElapsed: number) => {
     setSavedOk(null);
+    setSynced(null);
     if (finalElapsed < 5) return;
     try {
       const rec: SavedActivity = {
@@ -223,7 +233,7 @@ export default function ActivityScreen() {
         kind: selectedKind,
         elapsed: finalElapsed,
         distance,
-        kcal: estimateKcal(distance, selectedKind),
+        kcal: estimateKcal(distance, selectedKind, weightKg),
         route: sampleRoute(coords),
       };
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
@@ -231,6 +241,20 @@ export default function ActivityScreen() {
       list.push(rec);
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(list.slice(-50)));
       setSavedOk(true);
+      // Envío al servidor para que el entrenador la vea
+      try {
+        await saveActivity({
+          kind: rec.kind,
+          started_at: rec.date,
+          elapsed_s: rec.elapsed,
+          distance_m: rec.distance,
+          kcal: rec.kcal,
+        });
+        setSynced(true);
+      } catch (e) {
+        console.log(e);
+        setSynced(false);
+      }
     } catch (e) {
       console.log(e);
       setSavedOk(false);
@@ -428,6 +452,7 @@ export default function ActivityScreen() {
     setCoords([]);
     setPaceHistory([]);
     setSavedOk(null);
+    setSynced(null);
     lastCoord.current = null;
     lastTime.current = 0;
     resumeGap.current = false;
@@ -439,7 +464,7 @@ export default function ActivityScreen() {
   if (state === 'finished') {
     const avgPace = elapsed > 0 && distance > 0 ? elapsed / (distance / 1000) : 0;
     const avgSpeed = elapsed > 0 ? (distance / elapsed) * 3.6 : 0;
-    const kcal = estimateKcal(distance, selectedKind);
+    const kcal = estimateKcal(distance, selectedKind, weightKg);
 
     return (
       <SafeAreaView style={[s.container, { backgroundColor: C.bg }]} edges={['top']}>
@@ -451,7 +476,11 @@ export default function ActivityScreen() {
             </Text>
             {savedOk === true && (
               <Text style={[s.summarySub, { color: Colors.primary, fontFamily: FBB }]}>
-                Guardada en tu dispositivo
+                {synced === true
+                  ? 'Guardada y enviada a tu entrenador'
+                  : synced === false
+                    ? 'Guardada en tu dispositivo (no se pudo enviar a tu entrenador)'
+                    : 'Guardada en tu dispositivo'}
               </Text>
             )}
             {savedOk === false && (
@@ -615,7 +644,7 @@ export default function ActivityScreen() {
         </View>
         <View style={s.metricsRow}>
           <BigMetric value={formatPace(paceSecPerKm)} label="Ritmo" unit="min/km" color="#F59E0B" isDark={isDark} />
-          <BigMetric value={String(estimateKcal(distance, selectedKind))} label="Calorías" unit="kcal est." color="#EF4444" isDark={isDark} />
+          <BigMetric value={String(estimateKcal(distance, selectedKind, weightKg))} label="Calorías" unit="kcal est." color="#EF4444" isDark={isDark} />
         </View>
 
         {/* Mapa */}
@@ -654,6 +683,124 @@ export default function ActivityScreen() {
 }
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
+// ─── Vista del entrenador: actividades de sus clientes, agrupadas por nombre ───
+type ClientAct = { id: number; kind: ActivityKind; started_at: string; elapsed_s: number; distance_m: number; kcal: number };
+type ClientGroup = { client: { id: number; name: string }; activities: ClientAct[] };
+
+function paceText(elapsed: number, distanceM: number): string {
+  return distanceM > 0 ? formatPace(elapsed / (distanceM / 1000)) : '--:--';
+}
+
+function TrainerActivity() {
+  const isDark = useColorScheme() === 'dark';
+  const C = {
+    bg:      isDark ? '#111111' : '#F2F5EE',
+    surface: isDark ? '#1A1A1A' : '#FFFFFF',
+    text:    isDark ? '#F2F2F0' : '#1A1A1A',
+    sub:     isDark ? '#A1A1A0' : '#5F5E5A',
+    border:  isDark ? '#2A2A2A' : '#E3E6DD',
+  };
+  const [groups, setGroups] = useState<ClientGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [open, setOpen] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setGroups(await getClientActivities());
+      } catch (e: any) {
+        setError(e?.message || 'No se pudieron cargar las actividades');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const kindName = (k: string) => (k === 'walk' ? 'Caminar' : 'Correr');
+  const fmtDate = (iso: string) => {
+    const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+    return d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })
+      + ' · ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  return (
+    <SafeAreaView style={[s.container, { backgroundColor: C.bg }]} edges={['top']}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100, gap: 12 }}>
+        <View style={s.idleHeader}>
+          <Text style={[s.idleTitle, { color: C.text }]}>Actividad</Text>
+          <Text style={[s.idleSub, { color: C.sub }]}>Sesiones de correr y caminar de tus clientes</Text>
+        </View>
+
+        {loading && <Text style={{ color: C.sub, fontFamily: FB }}>Cargando…</Text>}
+        {!!error && <Text style={{ color: '#EF4444', fontFamily: FBB }}>{error}</Text>}
+        {!loading && !error && groups.length === 0 && (
+          <Text style={{ color: C.sub, fontFamily: FB }}>Todavía no tienes clientes activos.</Text>
+        )}
+
+        {groups.map(g => {
+          const isOpen = !!open[g.client.id];
+          const totalKm = g.activities.reduce((t, a) => t + a.distance_m, 0) / 1000;
+          return (
+            <View key={g.client.id} style={{ backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderRadius: 14 }}>
+              <TouchableOpacity
+                onPress={() => setOpen(prev => ({ ...prev, [g.client.id]: !isOpen }))}
+                activeOpacity={0.8}
+                style={{ padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontFamily: FBB, color: C.text }}>{g.client.name}</Text>
+                  <Text style={{ fontSize: 13, fontFamily: FB, color: C.sub, marginTop: 2 }}>
+                    {g.activities.length} {g.activities.length === 1 ? 'sesión' : 'sesiones'} · {totalKm.toFixed(2)} km
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 18, color: C.sub }}>{isOpen ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+
+              {isOpen && (
+                <View style={{ borderTopColor: C.border, borderTopWidth: 1, padding: 14, gap: 10 }}>
+                  {g.activities.length === 0 && (
+                    <Text style={{ color: C.sub, fontFamily: FB }}>Sin actividades registradas.</Text>
+                  )}
+                  {g.activities.map(a => (
+                    <View key={a.id} style={{ backgroundColor: C.bg, borderColor: C.border, borderWidth: 1, borderRadius: 10, padding: 12, gap: 8 }}>
+                      <Text style={{ fontSize: 14, fontFamily: FBB, color: Colors.primary }}>
+                        {kindName(a.kind)} · {fmtDate(a.started_at)}
+                      </Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        {[
+                          { v: formatTime(a.elapsed_s), l: 'tiempo' },
+                          { v: (a.distance_m / 1000).toFixed(2), l: 'km' },
+                          { v: paceText(a.elapsed_s, a.distance_m), l: 'min/km' },
+                          { v: ((a.distance_m / a.elapsed_s) * 3.6).toFixed(1), l: 'km/h' },
+                          { v: String(a.kcal), l: 'kcal' },
+                        ].map(m => (
+                          <View key={m.l} style={{ alignItems: 'center', flex: 1 }}>
+                            <Text style={{ fontSize: 15, fontFamily: FBB, color: C.text }}>{m.v}</Text>
+                            <Text style={{ fontSize: 11, fontFamily: FB, color: C.sub }}>{m.l}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// El entrenador ve las actividades de sus clientes; los clientes registran las suyas.
+export default function ActivityScreen() {
+  const [role, setRole] = useState<string | null | undefined>(undefined);
+  useEffect(() => { getRole().then(setRole).catch(() => setRole(null)); }, []);
+  if (role === undefined) return null;
+  return role === 'admin' ? <TrainerActivity /> : <ClientActivity />;
+}
+
 const s = StyleSheet.create({
   container: { flex: 1 },
   // Idle

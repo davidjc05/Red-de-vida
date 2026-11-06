@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from database import engine, Base, ensure_user_columns
-from routes import assignments, users, exercises, routines, auth
+from routes import assignments, users, exercises, routines, auth, activities
 from fastapi.middleware.cors import CORSMiddleware
 from routes import routines
 # Crea todas las tablas en la base de datos al arrancar
@@ -36,6 +36,7 @@ app.include_router(users.router)
 app.include_router(exercises.router)
 app.include_router(routines.router)
 app.include_router(assignments.router)
+app.include_router(activities.router)
 
 
 @app.get("/", tags=["Home"])

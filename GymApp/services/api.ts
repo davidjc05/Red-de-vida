@@ -397,6 +397,28 @@ export async function getClientAssignments() {
   return data;
 }
 
+// Actividad (correr / caminar)
+export async function saveActivity(a: {
+  kind: 'run' | 'walk'; started_at: string; elapsed_s: number; distance_m: number; kcal: number;
+}) {
+  const res = await authFetch('/activities', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(a),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(detailToText(data.detail, 'No se pudo enviar la actividad'));
+  return data;
+}
+
+// Entrenador: actividades de todos sus clientes agrupadas por cliente
+export async function getClientActivities() {
+  const res = await authFetch('/activities/clients');
+  const data = await res.json();
+  if (!res.ok) throw new Error(detailToText(data.detail, 'Error al cargar actividades'));
+  return data;
+}
+
 // ✅ CONFIRMAR / RECHAZAR
 
 export async function confirmWorkout(

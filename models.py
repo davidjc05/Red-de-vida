@@ -187,3 +187,20 @@ class WorkoutLog(Base):
 
     # ✅ Relación para acceder a log.exercise.name en los endpoints
     exercise = relationship("Exercise")
+
+# ─────────────────────────────────────────
+# ACTIVIDAD (correr / caminar) registrada por los clientes
+# ─────────────────────────────────────────
+
+class Activity(Base):
+    __tablename__ = "activities"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    kind       = Column(String, nullable=False)          # "run" | "walk"
+    started_at = Column(DateTime, nullable=False)        # fecha/hora de la actividad (UTC)
+    elapsed_s  = Column(Integer, nullable=False)         # segundos
+    distance_m = Column(Float, nullable=False)           # metros
+    kcal       = Column(Integer, nullable=False, default=0)
+
+    user = relationship("User")
