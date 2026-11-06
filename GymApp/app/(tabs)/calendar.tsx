@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
-import { getMyAssignments, confirmWorkout, saveWorkoutLog } from '../../services/api';
+import { getMyAssignments, getClientAssignments, getRole, confirmWorkout, saveWorkoutLog } from '../../services/api';
 import { Colors } from '../../constants/colors';
 
 const FC  = 'BarlowCondensed-ExtraBold';
@@ -75,6 +75,7 @@ interface Assignment {
     }[];
   };
   client?: { full_name: string };
+  note?: string | null;
 }
 
 export default function CalendarScreen() {
@@ -88,6 +89,7 @@ export default function CalendarScreen() {
   const [selectedEvent, setSelectedEvent] = useState<Assignment | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<Assignment[]>([]);
   const [logs, setLogs] = useState<any>({});
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const C = {
     bg:      isDark ? '#111111' : '#F2F5EE',
@@ -101,7 +103,9 @@ export default function CalendarScreen() {
     (async () => {
       setLoading(true);
       try {
-        const data = await getMyAssignments();
+        const admin = (await getRole()) === 'admin';
+        setIsAdmin(admin);
+        const data = admin ? await getClientAssignments() : await getMyAssignments();
         if (!data || !Array.isArray(data)) { setAssignments([]); return; }
         const adapted = data.map((a: any) => ({
           id: String(a.id),
@@ -123,14 +127,15 @@ export default function CalendarScreen() {
               }))
             ) || []),
           },
-          client: { full_name: 'Yo' },
+          note: a.note,
+          client: { full_name: a.assigned_to?.name ?? 'Yo' },
         }));
         setAssignments(adapted);
         const confirmed = adapted.filter(
           (a: Assignment) => a.status === 'confirmed'
         );
 
-        setActiveWorkout(confirmed);
+        setActiveWorkout(admin ? [] : confirmed);
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
     })();
@@ -216,7 +221,7 @@ export default function CalendarScreen() {
                         ]}
                         onPress={() => { setSelectedDate(day); setSelectedEvent(ev); }}
                         activeOpacity={0.8}
-                        accessibilityLabel={`${formatTime(ev.start_time)} ${ev.workout?.name ?? 'Entreno'}`}
+                        accessibilityLabel={`${isAdmin ? (ev.client?.full_name ?? 'Cliente') : formatTime(ev.start_time)} ${ev.workout?.name ?? 'Entreno'}`}
                       >
                         <Text
                           style={[
@@ -231,7 +236,7 @@ export default function CalendarScreen() {
                           ]}
                           numberOfLines={1}
                         >
-                          {ev.workout?.name ?? 'Entreno'}
+                          {isAdmin ? (ev.client?.full_name ?? 'Cliente') : (ev.workout?.name ?? 'Entreno')}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -276,9 +281,15 @@ export default function CalendarScreen() {
                 <Text style={[s.modalHeroTitle, { color: C.text }]} numberOfLines={2}>
                   {selectedEvent.workout?.name ?? 'Entrenamiento'}
                 </Text>
-                <Text style={[s.modalHeroTime, { color: C.sub }]}>
-                  {formatHour(sh)}:{pad(sm)} – {formatHour(eh)}:{pad(em)}
-                </Text>
+                {isAdmin ? (
+                  <Text style={[s.modalHeroTime, { color: Colors.primary, fontFamily: FBB }]}>
+                    Cliente: {selectedEvent.client?.full_name ?? '—'}
+                  </Text>
+                ) : (
+                  <Text style={[s.modalHeroTime, { color: C.sub }]}>
+                    {formatHour(sh)}:{pad(sm)} – {formatHour(eh)}:{pad(em)}
+                  </Text>
+                )}
               </View>
               <TouchableOpacity onPress={() => setSelectedEvent(null)} style={s.modalCloseBtn}>
                 <Text style={{ color: C.sub, fontSize: 20 }}>✕</Text>
@@ -366,7 +377,7 @@ export default function CalendarScreen() {
 
               {/* Botones de acción */}
               <View style={{ gap: 10, marginTop: 20, paddingHorizontal: 4 }}>
-                {selectedEvent?.status === 'pending' && (
+                {!isAdmin && selectedEvent?.status === 'pending' && (
                   <>
                     <TouchableOpacity
                       style={s.btnConfirm}
@@ -406,12 +417,12 @@ export default function CalendarScreen() {
                     </TouchableOpacity>
                   </>
                 )}
-                {selectedEvent?.status === 'confirmed' && (
+                {!isAdmin && selectedEvent?.status === 'confirmed' && (
                   <View style={s.statusBanner}>
                     <Text style={s.statusBannerText}>Entrenamiento confirmado</Text>
                   </View>
                 )}
-                {selectedEvent?.status === 'declined' && (
+                {!isAdmin && selectedEvent?.status === 'declined' && (
                   <View style={[s.statusBanner, { backgroundColor: '#FEE2E2' }]}>
                     <Text style={[s.statusBannerText, { color: '#991B1B' }]}>Entrenamiento rechazado</Text>
                   </View>
@@ -701,6 +712,34 @@ export default function CalendarScreen() {
           showsVerticalScrollIndicator={false}
         >
           <MonthGrid />
+
+          {isAdmin && (
+            <View style={[s.integratedWorkoutSection, { backgroundColor: C.bg, borderTopColor: C.border }]}>
+              <Text style={{ fontSize: 15, fontFamily: FBB, color: C.text, marginBottom: 8 }}>
+                {selectedDate.getDate()} de {MONTH_NAMES[selectedDate.getMonth()]} · sesiones de clientes
+              </Text>
+              {eventsOnDay(selectedDate).length === 0 ? (
+                <Text style={{ color: C.sub, fontFamily: FB }}>Ningún cliente tiene sesión este día.</Text>
+              ) : eventsOnDay(selectedDate).map(ev => (
+                <TouchableOpacity
+                  key={ev.id}
+                  onPress={() => setSelectedEvent(ev)}
+                  activeOpacity={0.8}
+                  style={{
+                    backgroundColor: C.surface, borderColor: C.border, borderWidth: 1,
+                    borderRadius: 12, padding: 12, marginBottom: 8,
+                  }}
+                >
+                  <Text style={{ fontSize: 15, fontFamily: FBB, color: Colors.primary }}>
+                    {ev.client?.full_name ?? 'Cliente'}
+                  </Text>
+                  <Text style={{ fontSize: 13, fontFamily: FB, color: C.sub, marginTop: 2 }}>
+                    {ev.workout?.name ?? 'Rutina'} · {ev.workout?.exercises?.length ?? 0} ejercicios
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
           {activeWorkout.length > 0 && (
             <View style={[s.integratedWorkoutSection, { backgroundColor: C.bg, borderTopColor: C.border }]}>

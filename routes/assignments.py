@@ -17,7 +17,7 @@ from models import (
 
 from schemas import AssignmentCreate, AssignmentOut
 from auth.auth import get_current_user
-from permissions import get_routine_or_403
+from permissions import get_routine_or_403, require_admin
 
 router = APIRouter(prefix="/assignments", tags=["assignments"])
 
@@ -86,6 +86,62 @@ def assign_routine(
     return assignments
 
 
+def _assignment_dict(a: Assignment) -> dict:
+    routine = a.routine
+
+    return {
+        "id": a.id,
+        "routine_id": a.routine_id,
+        "assigned_to_id": a.assigned_to_id,
+        "assigned_by_id": a.assigned_by_id,
+        "note": a.note,
+        "date": a.date,
+        "status": a.status or "pending",
+        "confirmed_at": a.confirmed_at,
+        "declined_at": a.declined_at,
+
+        "routine": {
+            "id": routine.id,
+            "name": routine.name,
+            "description": routine.description,
+            "user_id": routine.user_id,
+            "date": routine.date,
+
+            "blocks": [
+                {
+                    "id": block.id,
+                    "name": block.name,
+                    "exercises": [
+                        {
+                            "id": be.id,
+                            "sets": be.sets,
+                            "reps": be.reps,
+                            "exercise": {
+                                "id": be.exercise.id,
+                                "name": be.exercise.name,
+                                "muscle_group": be.exercise.muscle_group,
+                                "description": be.exercise.description,
+                                "image_url": be.exercise.image_url,
+                                "video_url": be.exercise.video_url,
+                            }
+                        }
+                        for be in block.exercises
+                        if be.exercise is not None
+                    ]
+                }
+                for block in routine.blocks
+            ]
+        } if routine else None,
+
+        "assigned_by": {
+            "id": a.assigned_by.id,
+            "name": a.assigned_by.name,
+            "email": a.assigned_by.email,
+        } if a.assigned_by else None
+    }
+
+
+
 # ─────────────────────────────────────────
 # MIS RUTINAS ASIGNADAS
 # ─────────────────────────────────────────
@@ -118,62 +174,42 @@ def my_assignments(
 
     assignments = query.all()
 
+    return [_assignment_dict(a) for a in assignments]
+
+
+# ─────────────────────────────────────────
+# TODAS LAS SESIONES DE LOS CLIENTES (solo entrenador)
+# ─────────────────────────────────────────
+
+@router.get("/clients")
+def clients_assignments(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    assignments = (
+        db.query(Assignment)
+        .options(
+            joinedload(Assignment.routine)
+            .joinedload(Routine.blocks)
+            .joinedload(Block.exercises)
+            .joinedload(BlockExercise.exercise),
+            joinedload(Assignment.assigned_to),
+        )
+        .join(User, Assignment.assigned_to_id == User.id)
+        .filter(User.role != "admin")
+        .order_by(Assignment.date)
+        .all()
+    )
+
     result = []
-
     for a in assignments:
-        routine = a.routine
-
-        result.append({
-            "id": a.id,
-            "routine_id": a.routine_id,
-            "assigned_to_id": a.assigned_to_id,
-            "assigned_by_id": a.assigned_by_id,
-            "note": a.note,
-            "date": a.date,
-            "status": a.status or "pending",
-            "confirmed_at": a.confirmed_at,
-            "declined_at": a.declined_at,
-
-            "routine": {
-                "id": routine.id,
-                "name": routine.name,
-                "description": routine.description,
-                "user_id": routine.user_id,
-                "date": routine.date,
-
-                "blocks": [
-                    {
-                        "id": block.id,
-                        "name": block.name,
-                        "exercises": [
-                            {
-                                "id": be.id,
-                                "sets": be.sets,
-                                "reps": be.reps,
-                                "exercise": {
-                                    "id": be.exercise.id,
-                                    "name": be.exercise.name,
-                                    "muscle_group": be.exercise.muscle_group,
-                                    "description": be.exercise.description,
-                                    "image_url": be.exercise.image_url,
-                                    "video_url": be.exercise.video_url,
-                                }
-                            }
-                            for be in block.exercises
-                            if be.exercise is not None
-                        ]
-                    }
-                    for block in routine.blocks
-                ]
-            } if routine else None,
-
-            "assigned_by": {
-                "id": a.assigned_by.id,
-                "name": a.assigned_by.name,
-                "email": a.assigned_by.email,
-            } if a.assigned_by else None
-        })
-
+        item = _assignment_dict(a)
+        item["assigned_to"] = {
+            "id": a.assigned_to.id,
+            "name": a.assigned_to.name,
+            "email": a.assigned_to.email,
+        }
+        result.append(item)
     return result
 
 

@@ -387,6 +387,15 @@ export async function getMyAssignments() {
   return data;
 }
 
+// Entrenador: sesiones de todos sus clientes (con nombre del cliente)
+export async function getClientAssignments() {
+  const res = await authFetch('/assignments/clients');
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(detailToText(data.detail, 'Error al cargar sesiones de clientes'));
+  }
+  return data;
+}
 
 // ✅ CONFIRMAR / RECHAZAR
 
