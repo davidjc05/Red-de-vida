@@ -1,4 +1,5 @@
 import { Tabs, Redirect, useRouter } from 'expo-router';
+import { Platform } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { useEffect, useState } from 'react';
 import { getMe, getToken, setOnUnauthorized } from '../../services/api';
@@ -89,6 +90,8 @@ export default function TabsLayout() {
         name="inicio"
         options={{
           title: 'Inicio',
+          // En la web no hay podómetro, así que la pestaña Inicio solo existe en la app móvil
+          href: Platform.OS === 'web' ? null : undefined,
           tabBarIcon: ({ color }) => (
             <House size={20} color={color} />
           ),
