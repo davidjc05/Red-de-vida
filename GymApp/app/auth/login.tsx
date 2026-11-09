@@ -38,7 +38,12 @@ export default function LoginScreen() {
       const role = await getRole();
       router.replace(homeFor(role));
     } catch (e: any) {
-      notify('Error de acceso', e?.message || 'Error desconocido');
+      if (e?.message === 'EMAIL_NO_VERIFICADO') {
+        notify('Verifica tu email', 'Te hemos enviado un código a tu correo. Introdúcelo para continuar.');
+        router.push({ pathname: '/auth/verify', params: { email: email.trim() } });
+      } else {
+        notify('Error de acceso', e?.message || 'Error desconocido');
+      }
     } finally {
       setLoading(false);
     }
@@ -125,7 +130,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             {/* OLVIDÉ */}
-            <TouchableOpacity style={s.forgotWrap}>
+            <TouchableOpacity style={s.forgotWrap} onPress={() => router.push('/auth/forgot')}>
               <Text style={s.forgot}>¿Olvidaste tu contraseña?</Text>
             </TouchableOpacity>
 

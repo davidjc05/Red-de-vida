@@ -41,6 +41,7 @@ _USER_EXTRA_COLUMNS = {
     "city": "VARCHAR",
     "birth_date": "DATE",
     "status": "VARCHAR NOT NULL DEFAULT 'active'",
+    "email_verified": "BOOLEAN NOT NULL DEFAULT TRUE",
 }
 
 

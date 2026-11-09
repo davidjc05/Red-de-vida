@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import {
   getMe, deleteToken, getMyWorkoutLogs, getUsers, updateMe, setUserStatus,
+  changePassword,
 } from '../../services/api';
 import { notify, confirmAction } from '../../services/ui';
 import { parseBirth, formatBirth, ageFrom } from '../../services/dates';
@@ -243,10 +244,10 @@ function InfoRow({ C, label, value, last }: { C: Pal; label: string; value?: str
 }
 
 function FormField({
-  C, label, value, onChange, placeholder, keyboardType, autoCapitalize,
+  C, label, value, onChange, placeholder, keyboardType, autoCapitalize, secure,
 }: {
   C: Pal; label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; keyboardType?: any; autoCapitalize?: any;
+  placeholder?: string; keyboardType?: any; autoCapitalize?: any; secure?: boolean;
 }) {
   return (
     <View style={{ gap: 6 }}>
@@ -259,6 +260,7 @@ function FormField({
         placeholderTextColor={C.textSub}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
+        secureTextEntry={secure}
       />
     </View>
   );
@@ -278,6 +280,11 @@ export default function ProfileScreen() {
   const [darkMode, setDarkMode] = useState(isDark);
   const [notifications, setNotifications] = useState(true);
   const [editModal, setEditModal] = useState(false);
+  const [pwModal, setPwModal] = useState(false);
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwNew2, setPwNew2] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
   const [editName, setEditName] = useState('');
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
   const [editPhone, setEditPhone] = useState('');
@@ -406,6 +413,22 @@ export default function ProfileScreen() {
     }
   };
 
+  const savePassword = async () => {
+    if (pwNew.length < 8) { notify('Contraseña', 'La nueva contraseña debe tener al menos 8 caracteres.'); return; }
+    if (pwNew !== pwNew2) { notify('Contraseña', 'Las contraseñas nuevas no coinciden.'); return; }
+    setPwSaving(true);
+    try {
+      await changePassword(pwCurrent, pwNew);
+      setPwModal(false);
+      setPwCurrent(''); setPwNew(''); setPwNew2('');
+      notify('Contraseña cambiada', 'Tu contraseña se ha actualizado.');
+    } catch (e: any) {
+      notify('Error', e?.message || 'No se pudo cambiar la contraseña');
+    } finally {
+      setPwSaving(false);
+    }
+  };
+
   const handleLogout = () => {
     confirmAction('Cerrar sesión', '¿Seguro que quieres salir?', 'Salir', async () => {
       await deleteToken();
@@ -443,6 +466,32 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={[s.container, { backgroundColor: C.bg }]} edges={['top']}>
+
+      {/* ── Modal cambiar contraseña ── */}
+      <Modal visible={pwModal} transparent animationType="slide" onRequestClose={() => setPwModal(false)}>
+        <View style={s.modalOverlay}>
+          <View style={[s.modalCard, { backgroundColor: C.surface, borderColor: C.border }]}>
+            <Text style={[s.modalTitle, { color: C.text }]}>Cambiar contraseña</Text>
+            <FormField C={C} label="Contraseña actual" value={pwCurrent} onChange={setPwCurrent} secure autoCapitalize="none" />
+            <FormField C={C} label="Nueva contraseña (mín. 8)" value={pwNew} onChange={setPwNew} secure autoCapitalize="none" />
+            <FormField C={C} label="Repite la nueva contraseña" value={pwNew2} onChange={setPwNew2} secure autoCapitalize="none" />
+            <View style={s.modalBtns}>
+              <TouchableOpacity style={[s.modalBtnCancel, { borderColor: C.border }]} onPress={() => setPwModal(false)} disabled={pwSaving}>
+                <Text style={{ color: C.textSub, fontFamily: FBB, fontSize: 15 }}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.modalBtnOk, { backgroundColor: Colors.primary, opacity: pwSaving ? 0.6 : 1 }]}
+                onPress={savePassword}
+                disabled={pwSaving}
+              >
+                {pwSaving
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={{ color: '#fff', fontFamily: FBB, fontSize: 15 }}>Cambiar</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── Modal editar perfil ── */}
       <Modal visible={editModal} transparent animationType="slide">
@@ -849,8 +898,18 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ── Cerrar sesión (acción destructiva, al final y aparte) ── */}
+        {/* ── Cambiar contraseña ── */}
         <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+          <TouchableOpacity
+            style={[s.logoutBtn, { borderColor: C.border }]}
+            onPress={() => setPwModal(true)}
+          >
+            <Text style={[s.logoutText, { color: C.text }]}>Cambiar contraseña</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Cerrar sesión (acción destructiva, al final y aparte) ── */}
+        <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
           <TouchableOpacity
             style={[s.logoutBtn, { borderColor: negative }]}
             onPress={handleLogout}

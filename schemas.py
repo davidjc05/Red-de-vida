@@ -54,6 +54,7 @@ class UserOut(BaseModel):
     city: Optional[str] = None
     birth_date: Optional[date] = None
     status: str = "active"
+    email_verified: bool = True
 
     class Config:
         from_attributes = True

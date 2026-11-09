@@ -72,6 +72,12 @@ export default function RegisterScreen() {
         birth_date: birthIso,
       });
 
+      // Primero hay que comprobar que el email es real (código enviado al correo)
+      if (created?.email_verified === false) {
+        router.replace({ pathname: '/auth/verify', params: { email: email.trim() } });
+        return;
+      }
+
       // Los clientes nuevos esperan a que el entrenador apruebe su cuenta
       if (created?.status === 'pending') {
         notify(

@@ -157,6 +157,38 @@ export async function register(
   return data;
 }
 
+async function postJson(path: string, body: object, fallback: string) {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: COMMON_HEADERS,
+    body: JSON.stringify(body),
+  });
+  let data: any = {};
+  try { data = await res.json(); } catch {}
+  if (!res.ok) throw new Error(detailToText(data.detail, fallback));
+  return data;
+}
+
+// Verificación de email y recuperación de contraseña
+export const verifyEmail = (email: string, code: string) =>
+  postJson('/auth/verify-email', { email, code }, 'Código incorrecto o caducado');
+export const resendCode = (email: string) =>
+  postJson('/auth/resend-code', { email }, 'No se pudo reenviar el código');
+export const forgotPassword = (email: string) =>
+  postJson('/auth/forgot-password', { email }, 'No se pudo enviar el código');
+export const resetPassword = (email: string, code: string, new_password: string) =>
+  postJson('/auth/reset-password', { email, code, new_password }, 'No se pudo cambiar la contraseña');
+
+export async function changePassword(current_password: string, new_password: string) {
+  const res = await authFetch('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ current_password, new_password }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(detailToText(data.detail, 'No se pudo cambiar la contraseña'));
+  return data;
+}
+
 // El propio usuario edita su perfil
 export async function updateMe(fields: ProfileFields & { name?: string; weight_kg?: number }) {
   const res = await authFetch('/auth/me', {

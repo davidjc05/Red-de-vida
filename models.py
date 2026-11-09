@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date, DateTime
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date, DateTime, Boolean, true
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -26,6 +26,7 @@ class User(Base):
     city             = Column(String, nullable=True)
     birth_date       = Column(Date, nullable=True)
     status           = Column(String, default="active", nullable=False, server_default="active")
+    email_verified   = Column(Boolean, default=True, nullable=False, server_default=true())
 
     routines             = relationship("Routine", back_populates="user")
     assignments_received = relationship("Assignment", foreign_keys="Assignment.assigned_to_id", back_populates="assigned_to")
@@ -204,3 +205,19 @@ class Activity(Base):
     kcal       = Column(Integer, nullable=False, default=0)
 
     user = relationship("User")
+
+
+# ─────────────────────────────────────────
+# CÓDIGOS DE EMAIL (verificación y recuperación de contraseña)
+# ─────────────────────────────────────────
+
+class EmailCode(Base):
+    __tablename__ = "email_codes"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    email      = Column(String, index=True, nullable=False)
+    purpose    = Column(String, nullable=False)      # "verify" | "reset"
+    code_hash  = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    attempts   = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
