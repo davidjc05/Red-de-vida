@@ -33,7 +33,7 @@ type Exercise = {
   video_url?: string;
 };
 
-const MUSCLE_GROUPS = ['Todos', 'Pecho', 'Espalda', 'Piernas', 'Hombros', 'Bíceps', 'Tríceps', 'Core'];
+const MUSCLE_GROUPS = ['Todos', 'Calentamiento', 'Pecho', 'Espalda', 'Piernas', 'Hombros', 'Bíceps', 'Tríceps', 'Abdomen'];
 
 const GROUP_COLORS: Record<string, { bg: string; text: string; accent: string }> = {
   Pecho:   { bg: '#EAF3DE', text: '#27500A', accent: '#3B6D11' },
@@ -42,7 +42,8 @@ const GROUP_COLORS: Record<string, { bg: string; text: string; accent: string }>
   Hombros: { bg: '#FCE7F3', text: '#9D174D', accent: '#EC4899' },
   Bíceps:  { bg: '#E0F2FE', text: '#075985', accent: '#0EA5E9' },
   Tríceps: { bg: '#F0FDF4', text: '#14532D', accent: '#22C55E' },
-  Core:    { bg: '#FFF7ED', text: '#9A3412', accent: '#F97316' },
+  Abdomen: { bg: '#FFF7ED', text: '#9A3412', accent: '#F97316' },
+  Calentamiento: { bg: '#FEF9C3', text: '#854D0E', accent: '#EAB308' },
   default: { bg: '#F1F5F9', text: '#475569', accent: '#94A3B8' },
 };
 

@@ -58,6 +58,15 @@ class ChangePasswordIn(BaseModel):
 
 @router.post("/register", response_model=UserOut, status_code=201)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
+    missing = [
+        label for label, value in (
+            ("teléfono", user_in.phone), ("país", user_in.country),
+            ("ciudad", user_in.city), ("fecha de nacimiento", user_in.birth_date),
+        ) if not value
+    ]
+    if missing:
+        raise HTTPException(422, "Faltan datos obligatorios: " + ", ".join(missing))
+
     existing = db.query(User).filter(User.email == user_in.email).first()
     if existing and existing.email_verified:
         raise HTTPException(400, "Email ya registrado")

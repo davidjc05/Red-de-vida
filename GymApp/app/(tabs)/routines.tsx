@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, Dimensions, TextInput, Modal,
+  Dimensions, TextInput, Modal,
   FlatList, Alert, ActivityIndicator, Platform, KeyboardAvoidingView,
 } from 'react-native';
+import { useColorScheme } from '../../hooks/use-color-scheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Plus, Search, X, ChevronLeft, ChevronRight, ChevronDown, Check,
@@ -34,7 +35,7 @@ const { width } = Dimensions.get('window');
 const isTablet = width > 768;
 // Un solo tono (el de la marca) en distintas intensidades: el color no distingue bloques, lo hace el nombre
 const BLOCK_COLORS = ['#3B6D11', '#5A9E1A', '#2F5A0D', '#6FA82A', '#4A8514', '#86B84A'];
-const MUSCLE_GROUPS = ['Todos', 'Pecho', 'Espalda', 'Piernas', 'Hombros', 'Bíceps', 'Tríceps', 'Core'];
+const MUSCLE_GROUPS = ['Todos', 'Calentamiento', 'Pecho', 'Espalda', 'Piernas', 'Hombros', 'Bíceps', 'Tríceps', 'Abdomen'];
 const uid = () => Date.now().toString() + Math.random().toString(36).slice(2, 6);
 
 // ─── Componente principal ──────────────────────────────────────────────────────

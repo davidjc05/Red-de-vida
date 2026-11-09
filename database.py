@@ -45,6 +45,15 @@ _USER_EXTRA_COLUMNS = {
 }
 
 
+def rename_muscle_groups(engine):
+    """Renombra grupos antiguos en los ejercicios ya guardados (Core -> Abdomen). Idempotente."""
+    insp = inspect(engine)
+    if not insp.has_table("exercises"):
+        return
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE exercises SET muscle_group = 'Abdomen' WHERE muscle_group = 'Core'"))
+
+
 def ensure_user_columns(engine):
     insp = inspect(engine)
     if not insp.has_table("users"):

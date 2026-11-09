@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  useColorScheme, Dimensions, ScrollView, Platform, Alert, Linking,
+  Dimensions, ScrollView, Platform, Alert, Linking,
 } from 'react-native';
+import { useColorScheme } from '../../hooks/use-color-scheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';

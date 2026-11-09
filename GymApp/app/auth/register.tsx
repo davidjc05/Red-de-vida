@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { register, login, getRole, homeFor } from '../../services/api';
 import { notify } from '../../services/ui';
-import { parseBirth } from '../../services/dates';
+import { maskBirth, parseBirth } from '../../services/dates';
 
 const { width, height } = Dimensions.get('window');
 
@@ -46,7 +46,7 @@ export default function RegisterScreen() {
   const passwordsMismatch = password2.length > 0 && password !== password2;
 
   async function handleRegister() {
-    if (!name || !email || !password || !password2) {
+    if (!name.trim() || !email.trim() || !phone.trim() || !country.trim() || !city.trim() || !birth.trim() || !password || !password2) {
       notify('Error', 'Rellena todos los campos');
       return;
     }
@@ -59,8 +59,8 @@ export default function RegisterScreen() {
       return;
     }
     const birthIso = parseBirth(birth);
-    if (birthIso === 'invalid') {
-      notify('Fecha no válida', 'Escríbela como DD/MM/AAAA, por ejemplo 17/05/1990');
+    if (birthIso === 'invalid' || birthIso === null) {
+      notify('Fecha no válida', 'Escribe solo los números de tu fecha de nacimiento, por ejemplo 17051990');
       return;
     }
     setLoading(true);
@@ -161,8 +161,8 @@ export default function RegisterScreen() {
               />
             </View>
 
-            {/* TELÉFONO (OPCIONAL) */}
-            <Text style={s.fieldLabel}>Teléfono (opcional)</Text>
+            {/* TELÉFONO */}
+            <Text style={s.fieldLabel}>Teléfono</Text>
             <View style={s.inputWrap}>
               <Text style={s.inputIcon}>📞</Text>
               <TextInput
@@ -175,8 +175,8 @@ export default function RegisterScreen() {
               />
             </View>
 
-            {/* PAÍS (OPCIONAL) */}
-            <Text style={s.fieldLabel}>País (opcional)</Text>
+            {/* PAÍS */}
+            <Text style={s.fieldLabel}>País</Text>
             <View style={s.inputWrap}>
               <Text style={s.inputIcon}>🌍</Text>
               <TextInput
@@ -189,8 +189,8 @@ export default function RegisterScreen() {
               />
             </View>
 
-            {/* CIUDAD (OPCIONAL) */}
-            <Text style={s.fieldLabel}>Ciudad (opcional)</Text>
+            {/* CIUDAD */}
+            <Text style={s.fieldLabel}>Ciudad</Text>
             <View style={s.inputWrap}>
               <Text style={s.inputIcon}>🏙️</Text>
               <TextInput
@@ -203,17 +203,18 @@ export default function RegisterScreen() {
               />
             </View>
 
-            {/* FECHA DE NACIMIENTO (OPCIONAL) */}
-            <Text style={s.fieldLabel}>Fecha de nacimiento (opcional)</Text>
+            {/* FECHA DE NACIMIENTO */}
+            <Text style={s.fieldLabel}>Fecha de nacimiento</Text>
             <View style={s.inputWrap}>
               <Text style={s.inputIcon}>🎂</Text>
               <TextInput
                 style={s.input}
                 placeholder="DD/MM/AAAA"
                 placeholderTextColor="rgba(59,109,17,0.45)"
-                keyboardType="numbers-and-punctuation"
+                keyboardType="number-pad"
+                maxLength={10}
                 value={birth}
-                onChangeText={setBirth}
+                onChangeText={t => setBirth(prev => maskBirth(t, prev))}
               />
             </View>
 

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, ActivityIndicator,
+  ActivityIndicator,
   Modal, TextInput
 } from 'react-native';
+import { useColorScheme } from '../../hooks/use-color-scheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { getMyAssignments, getClientAssignments, getRole, confirmWorkout, saveWorkoutLog } from '../../services/api';

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, ActivityIndicator,
+  ActivityIndicator,
   Switch, Alert, Platform, TextInput, Modal, Image, Dimensions,
 } from 'react-native';
+import { useColorScheme } from '../../hooks/use-color-scheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import Svg, { Polyline, Circle, Line, Text as SvgText } from 'react-native-svg';
@@ -17,7 +18,7 @@ import {
   changePassword,
 } from '../../services/api';
 import { notify, confirmAction } from '../../services/ui';
-import { parseBirth, formatBirth, ageFrom } from '../../services/dates';
+import { parseBirth, formatBirth, ageFrom, maskBirth } from '../../services/dates';
 
 const { width } = Dimensions.get('window');
 
@@ -244,10 +245,10 @@ function InfoRow({ C, label, value, last }: { C: Pal; label: string; value?: str
 }
 
 function FormField({
-  C, label, value, onChange, placeholder, keyboardType, autoCapitalize, secure,
+  C, label, value, onChange, placeholder, keyboardType, autoCapitalize, secure, maxLength,
 }: {
   C: Pal; label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; keyboardType?: any; autoCapitalize?: any; secure?: boolean;
+  placeholder?: string; keyboardType?: any; autoCapitalize?: any; secure?: boolean; maxLength?: number;
 }) {
   return (
     <View style={{ gap: 6 }}>
@@ -261,6 +262,7 @@ function FormField({
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         secureTextEntry={secure}
+        maxLength={maxLength}
       />
     </View>
   );
@@ -503,7 +505,7 @@ export default function ProfileScreen() {
               <FormField C={C} label="Teléfono" value={editPhone} onChange={setEditPhone} placeholder="600 123 456" keyboardType="phone-pad" />
               <FormField C={C} label="País" value={editCountry} onChange={setEditCountry} placeholder="España" autoCapitalize="words" />
               <FormField C={C} label="Ciudad" value={editCity} onChange={setEditCity} placeholder="Madrid" autoCapitalize="words" />
-              <FormField C={C} label="Fecha de nacimiento" value={editBirth} onChange={setEditBirth} placeholder="DD/MM/AAAA" keyboardType="numbers-and-punctuation" />
+              <FormField C={C} label="Fecha de nacimiento" value={editBirth} onChange={t => setEditBirth(prev => maskBirth(t, prev))} placeholder="DD/MM/AAAA" keyboardType="number-pad" maxLength={10} />
             </ScrollView>
             <View style={s.modalBtns}>
               <TouchableOpacity style={[s.modalBtnCancel, { borderColor: C.border }]} onPress={() => setEditModal(false)} disabled={saving}>
@@ -872,13 +874,6 @@ export default function ProfileScreen() {
                   thumbColor="#FFFFFF"
                 />
               }
-              isDark={isDark}
-            />
-            <SettingRow
-              icon="🔒"
-              label="Cambiar contraseña"
-              sub="Última actualización: nunca"
-              onPress={() => Alert.alert('Próximamente', 'Esta función estará disponible pronto')}
               isDark={isDark}
             />
             <SettingRow

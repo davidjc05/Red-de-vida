@@ -1,5 +1,18 @@
 // Fecha de nacimiento: en pantalla DD/MM/AAAA, en la API AAAA-MM-DD.
 
+// Escribe solo los números: la barra se pone sola nada más completar el día y el mes
+// (24 -> 24/ ; 2405 -> 24/05/). `prev` es el texto anterior, para no volver a poner la barra al borrar.
+export function maskBirth(input: string, prev: string = ''): string {
+  const d = input.replace(/\D/g, '').slice(0, 8);
+  const typing = input.length > prev.length;
+  let out = d.slice(0, 2);
+  if (d.length > 2 || (typing && d.length === 2)) out += '/';
+  out += d.slice(2, 4);
+  if (d.length > 4 || (typing && d.length === 4)) out += '/';
+  out += d.slice(4);
+  return out;
+}
+
 // '' -> null (campo vacío) | 'AAAA-MM-DD' si es válida | 'invalid'
 export function parseBirth(input: string): string | null | 'invalid' {
   const t = input.trim();

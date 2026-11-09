@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, Dimensions, SafeAreaView, ActivityIndicator,
+  Dimensions, SafeAreaView, ActivityIndicator,
   ImageBackground,
 } from 'react-native';
+import { useColorScheme } from '../../hooks/use-color-scheme';
 import { Pedometer } from 'expo-sensors';
 import Svg, { Circle, Line, Text as SvgText } from 'react-native-svg';
 import { Colors } from '../../constants/colors';

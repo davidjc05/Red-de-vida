@@ -1,21 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useColorScheme as useRNColorScheme } from 'react-native';
-
-/**
- * To support static rendering, this value needs to be re-calculated on the client side for web
- */
-export function useColorScheme() {
-  const [hasHydrated, setHasHydrated] = useState(false);
-
-  useEffect(() => {
-    setHasHydrated(true);
-  }, []);
-
-  const colorScheme = useRNColorScheme();
-
-  if (hasHydrated) {
-    return colorScheme;
-  }
-
+// La app se ve siempre en modo claro, aunque el dispositivo o el navegador estén en modo oscuro.
+// (En móvil ya lo fuerza "userInterfaceStyle": "light" de app.json; esto hace lo mismo en la web.)
+export function useColorScheme(): 'light' | 'dark' {
   return 'light';
 }
