@@ -18,6 +18,7 @@ import {
   changePassword,
 } from '../../services/api';
 import { notify, confirmAction } from '../../services/ui';
+import { TrainerForms, SendFormModal, MyForms } from '../../components/FormsPanel';
 import { parseBirth, formatBirth, ageFrom, maskBirth } from '../../services/dates';
 
 const { width } = Dimensions.get('window');
@@ -296,6 +297,7 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<any>(null);
+  const [formClient, setFormClient] = useState<any>(null);
   const [statusBusy, setStatusBusy] = useState(false);
 
   useEffect(() => {
@@ -581,6 +583,14 @@ export default function ProfileScreen() {
                       <Text style={{ color: '#fff', fontFamily: FBB, fontSize: 15 }}>Reactivar suscripción</Text>
                     </TouchableOpacity>
                   )}
+                  {selectedClient.status === 'active' && (
+                    <TouchableOpacity
+                      style={[s.modalBtnOk, { backgroundColor: Colors.primary }]}
+                      onPress={() => { setFormClient(selectedClient); setSelectedClient(null); }}
+                    >
+                      <Text style={{ color: '#fff', fontFamily: FBB, fontSize: 15 }}>Enviar formulario</Text>
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity style={[s.modalBtnCancel, { borderColor: C.border }]} onPress={() => setSelectedClient(null)}>
                     <Text style={{ color: C.textSub, fontFamily: FBB, fontSize: 15 }}>Cerrar</Text>
                   </TouchableOpacity>
@@ -590,6 +600,8 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      <SendFormModal C={C} client={formClient} onClose={() => setFormClient(null)} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
 
@@ -717,6 +729,13 @@ export default function ProfileScreen() {
             )}
           </View>
         )}
+
+        {/* ════════════════════════════
+            FORMULARIOS (Google Forms)
+        ════════════════════════════ */}
+        <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+          {isAdmin ? <TrainerForms C={C} /> : <MyForms C={C} />}
+        </View>
 
         {/* ════════════════════════════
             RESUMEN

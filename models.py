@@ -221,3 +221,28 @@ class EmailCode(Base):
     expires_at = Column(DateTime, nullable=False)
     attempts   = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+# ─────────────────────────────────────────
+# FORMULARIOS (enlaces de Google Forms que el entrenador envía a sus clientes)
+# ─────────────────────────────────────────
+
+class Form(Base):
+    __tablename__ = "forms"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    title      = Column(String, nullable=False)
+    url        = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class FormSend(Base):
+    __tablename__ = "form_sends"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    form_id    = Column(Integer, ForeignKey("forms.id", ondelete="CASCADE"), index=True, nullable=False)
+    user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    sent_at    = Column(DateTime, nullable=False, default=datetime.utcnow)
+    email_sent = Column(Boolean, nullable=False, default=False)
+
+    form = relationship("Form")

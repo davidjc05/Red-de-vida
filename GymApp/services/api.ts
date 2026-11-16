@@ -126,7 +126,7 @@ export async function login(email: string, password: string) {
 function detailToText(detail: any, fallback: string): string {
   if (typeof detail === 'string') return detail;
   if (Array.isArray(detail)) {
-    const msgs = detail.map((d: any) => d?.msg).filter(Boolean);
+    const msgs = detail.map((d: any) => String(d?.msg ?? '').replace(/^Value error, /, '')).filter(Boolean);
     if (msgs.length) return msgs.join('. ');
   }
   return fallback;
@@ -210,6 +210,25 @@ export async function setUserStatus(id: number, status: 'active' | 'suspended') 
   if (!res.ok) throw new Error(detailToText(data.detail, 'No se pudo cambiar el estado'));
   return data;
 }
+
+// ── Formularios (enlaces de Google Forms) ──
+async function formsRequest(path: string, init: RequestInit | undefined, fallback: string) {
+  const res = await authFetch(path, init);
+  if (res.status === 204) return null;
+  const data = await res.json();
+  if (!res.ok) throw new Error(detailToText(data.detail, fallback));
+  return data;
+}
+export const getForms = () => formsRequest('/forms', undefined, 'No se pudieron cargar los formularios');
+export const createForm = (title: string, url: string) =>
+  formsRequest('/forms', { method: 'POST', body: JSON.stringify({ title, url }) }, 'No se pudo guardar el formulario');
+export const deleteForm = (id: number) =>
+  formsRequest(`/forms/${id}`, { method: 'DELETE' }, 'No se pudo borrar el formulario');
+export const sendForm = (formId: number, userId: number) =>
+  formsRequest(`/forms/${formId}/send`, { method: 'POST', body: JSON.stringify({ user_id: userId }) }, 'No se pudo enviar el formulario');
+export const getFormsSentTo = (userId: number) =>
+  formsRequest(`/forms/sent/${userId}`, undefined, 'No se pudo cargar el historial');
+export const getMyForms = () => formsRequest('/forms/mine', undefined, 'No se pudieron cargar tus formularios');
 
 export async function getMe() {
   const res = await authFetch('/auth/me');
