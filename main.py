@@ -1,8 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from sqlalchemy import text
 from database import engine, Base, ensure_user_columns, rename_muscle_groups
 from routes import assignments, users, exercises, routines, auth, activities, forms
 from fastapi.middleware.cors import CORSMiddleware
-from routes import routines
 # Crea todas las tablas en la base de datos al arrancar
 Base.metadata.create_all(bind=engine)
 ensure_user_columns(engine)  # añade columnas nuevas a users si faltan
@@ -48,3 +48,15 @@ def home():
         "docs": "/docs",
         "version": "1.0.0"
     }
+
+
+@app.get("/health", tags=["Home"])
+def health():
+    """Comprobación ligera para un monitor externo (UptimeRobot): mantiene
+    despierto el servidor y la base de datos."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception:
+        raise HTTPException(status_code=503, detail="Base de datos no disponible")
+    return {"status": "ok"}

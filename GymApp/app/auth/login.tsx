@@ -71,7 +71,7 @@ export default function LoginScreen() {
           {/* ── LOGO ── */}
           <View style={s.logoSection}>
             <Image
-              source={require('../../assets/images/logotipo.png')}
+              source={require('../../assets/images/logotipo.webp')}
               style={s.logo}
               resizeMode="contain"
             />

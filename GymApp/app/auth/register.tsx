@@ -121,7 +121,7 @@ export default function RegisterScreen() {
               <Text style={s.backText}>← Volver</Text>
             </TouchableOpacity>
             <Image
-              source={require('../../assets/images/logotipo.png')}
+              source={require('../../assets/images/logotipo.webp')}
               style={s.logo}
               resizeMode="contain"
             />

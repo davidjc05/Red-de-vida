@@ -1,4 +1,5 @@
 import { storage } from './storage';
+import { wakeAwareFetch } from './serverStatus';
 
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -55,7 +56,7 @@ const COMMON_HEADERS = {
 async function authFetch(path: string, options: RequestInit = {}) {
   const token = await getToken();
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await wakeAwareFetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       ...COMMON_HEADERS,
@@ -76,7 +77,7 @@ async function authFetch(path: string, options: RequestInit = {}) {
 // ── AUTH ──────────────────────────────────────────────────────
 export async function login(email: string, password: string) {
 
-  const res = await fetch(`${API_URL}/auth/login`, {
+  const res = await wakeAwareFetch(`${API_URL}/auth/login`, {
     method: 'POST',
 
     headers: {
@@ -145,7 +146,7 @@ export async function register(
   password: string,
   extra: ProfileFields = {},
 ) {
-  const res = await fetch(`${API_URL}/auth/register`, {
+  const res = await wakeAwareFetch(`${API_URL}/auth/register`, {
     method: 'POST',
     headers: COMMON_HEADERS,
     body: JSON.stringify({ name, email, password, ...extra }),
@@ -158,7 +159,7 @@ export async function register(
 }
 
 async function postJson(path: string, body: object, fallback: string) {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await wakeAwareFetch(`${API_URL}${path}`, {
     method: 'POST',
     headers: COMMON_HEADERS,
     body: JSON.stringify(body),
