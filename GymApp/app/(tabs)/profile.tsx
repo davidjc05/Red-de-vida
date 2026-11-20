@@ -15,8 +15,9 @@ import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import {
   getMe, deleteToken, getMyWorkoutLogs, getUsers, updateMe, setUserStatus,
-  changePassword, exportMyData, deleteMyAccount,
+  changePassword, exportMyData, deleteMyAccount, getTrackingSummary,
 } from '../../services/api';
+import type { TrackingSummary } from '../../services/api';
 import { notify, confirmAction } from '../../services/ui';
 import { TrainerForms, SendFormModal, MyForms } from '../../components/FormsPanel';
 import { parseBirth, formatBirth, ageFrom, maskBirth } from '../../services/dates';
@@ -203,6 +204,14 @@ const SETTING_ICONS: Record<string, React.ComponentType<{ size?: number; color?:
   '❓': Info,
 };
 
+// Estado de seguimiento de cada cliente (panel de la entrenadora)
+const TRACK_INFO: Record<string, { label: string; bg: string; fg: string }> = {
+  al_dia:   { label: 'Al día',   bg: '#DCFCE7', fg: '#166534' },
+  atencion: { label: 'Atención', bg: '#FEF3C7', fg: '#92400E' },
+  inactivo: { label: 'Inactivo', bg: '#FEE2E2', fg: '#991B1B' },
+  sin_plan: { label: 'Sin plan', bg: '#E3E6DD', fg: '#4A4944' },
+};
+
 function SettingRow({ icon, label, sub, right, onPress, isDark, last }: {
   icon: string; label: string; sub?: string;
   right?: React.ReactNode; onPress?: () => void; isDark: boolean; last?: boolean;
@@ -299,6 +308,7 @@ export default function ProfileScreen() {
   const [editBirth, setEditBirth] = useState('');
   const [saving, setSaving] = useState(false);
   const [clients, setClients] = useState<any[]>([]);
+  const [tracking, setTracking] = useState<TrackingSummary | null>(null);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [formClient, setFormClient] = useState<any>(null);
   const [statusBusy, setStatusBusy] = useState(false);
@@ -318,6 +328,7 @@ export default function ProfileScreen() {
           const all = await getUsers();
           setClients((all ?? []).filter((u: any) => u.role !== 'admin'));
         } catch { setClients([]); }
+        try { setTracking(await getTrackingSummary()); } catch { setTracking(null); }
       }
       try {
         const logsData = await getMyWorkoutLogs();
@@ -749,6 +760,68 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {isAdmin && tracking && (
+          <View style={[s.section, { paddingHorizontal: 16 }]}>
+            <View style={s.sectionHeader}>
+              <Text style={[s.sectionTitle, { color: C.text }]}>Seguimiento</Text>
+              <Text style={[s.sectionSub, { color: C.textSub }]}>
+                {tracking.avg_adherence_pct !== null
+                  ? `Cumplimiento medio ${tracking.avg_adherence_pct} % (${tracking.window_days} días)`
+                  : `Últimos ${tracking.window_days} días`}
+              </Text>
+            </View>
+
+            <View style={[s.statsRow, { backgroundColor: C.surface, borderColor: C.border }]}>
+              <StatCard icon="" value={String(tracking.counts.al_dia)} label="Al día" color="#166534" isDark={isDark} />
+              <View style={[s.statsDivider, { backgroundColor: C.border }]} />
+              <StatCard icon="" value={String(tracking.counts.atencion)} label="Atención" color="#92400E" isDark={isDark} />
+              <View style={[s.statsDivider, { backgroundColor: C.border }]} />
+              <StatCard icon="" value={String(tracking.counts.inactivo)} label="Inactivos" color="#991B1B" isDark={isDark} />
+              <View style={[s.statsDivider, { backgroundColor: C.border }]} />
+              <StatCard icon="" value={String(tracking.counts.sin_plan)} label="Sin plan" color={C.textSub} isDark={isDark} />
+            </View>
+
+            {tracking.pending_approvals > 0 && (
+              <Text style={[s.sectionSub, { color: '#92400E' }]}>
+                {tracking.pending_approvals} {tracking.pending_approvals === 1 ? 'alta pendiente' : 'altas pendientes'} de aprobar
+              </Text>
+            )}
+
+            {tracking.clients.length > 0 && (
+              <View style={[s.settingsCard, { backgroundColor: C.surface, borderColor: C.border }]}>
+                {tracking.clients.map((c, i) => {
+                  const st = TRACK_INFO[c.tracking_status];
+                  const last =
+                    c.days_since_last === null ? 'Aún sin entrenar'
+                    : c.days_since_last === 0 ? 'Entrenó hoy'
+                    : c.days_since_last === 1 ? 'Entrenó ayer'
+                    : `Último entreno hace ${c.days_since_last} días`;
+                  const plan = c.assigned_30d > 0
+                    ? `${c.done_30d}/${c.assigned_30d} rutinas · ${c.adherence_pct} %`
+                    : 'Sin rutinas en 30 días';
+                  return (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={[s.clientRow, { borderBottomColor: C.border, borderBottomWidth: i === tracking.clients.length - 1 ? 0 : 1 }]}
+                      onPress={() => { const full = clients.find(x => x.id === c.id); if (full) setSelectedClient(full); }}
+                      activeOpacity={0.7}
+                      accessibilityLabel={`Ver a ${c.name}`}
+                    >
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={[s.clientName, { color: C.text }]} numberOfLines={1}>{c.name}</Text>
+                        <Text style={[s.clientEmail, { color: C.textSub }]} numberOfLines={1}>{last} · {plan}</Text>
+                      </View>
+                      <View style={[s.statusPill, { backgroundColor: st.bg }]}>
+                        <Text style={[s.statusPillText, { color: st.fg }]}>{st.label}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
+
         {isAdmin && (
           <View style={[s.section, { paddingHorizontal: 16 }]}>
             <View style={s.sectionHeader}>
@@ -807,6 +880,7 @@ export default function ProfileScreen() {
         {/* ════════════════════════════
             RESUMEN
         ════════════════════════════ */}
+        {!isAdmin && (
         <View style={[s.section, { paddingHorizontal: 16, marginTop: 20 }]}>
           <Text style={[s.sectionTitle, { color: C.text }]}>Resumen</Text>
           <View style={[s.statsRow, { backgroundColor: C.surface, borderColor: C.border }]}>
@@ -817,6 +891,7 @@ export default function ProfileScreen() {
             <StatCard icon="" value={`${maxKgEver}kg`} label="Mejor marca" color={Colors.primary} isDark={isDark} />
           </View>
         </View>
+        )}
 
         {!isAdmin && (
         <>

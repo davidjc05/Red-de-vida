@@ -264,6 +264,34 @@ export async function getUsers() {
   return data;
 }
 
+// ── SEGUIMIENTO (entrenadora) ────────────────────────────────
+export type TrackingClient = {
+  id: number;
+  name: string;
+  email: string;
+  tracking_status: 'al_dia' | 'atencion' | 'inactivo' | 'sin_plan';
+  assigned_30d: number;
+  done_30d: number;
+  adherence_pct: number | null;
+  days_since_last: number | null;
+  next_date: string | null;
+};
+export type TrackingSummary = {
+  window_days: number;
+  pending_approvals: number;
+  active_clients: number;
+  counts: Record<'al_dia' | 'atencion' | 'inactivo' | 'sin_plan', number>;
+  avg_adherence_pct: number | null;
+  clients: TrackingClient[];
+};
+
+export async function getTrackingSummary(): Promise<TrackingSummary> {
+  const res = await authFetch('/tracking/summary');
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || 'No se pudo cargar el seguimiento');
+  return data;
+}
+
 // ── EJERCICIOS ────────────────────────────────────────────────
 export async function getExercises(muscleGroup?: string) {
   const query = muscleGroup ? `?muscle_group=${encodeURIComponent(muscleGroup)}` : '';

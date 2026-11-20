@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI, HTTPException
 from sqlalchemy import text
 from database import engine, Base, ensure_user_columns, rename_muscle_groups
-from routes import assignments, users, exercises, routines, auth, activities, forms
+from routes import assignments, users, exercises, routines, auth, activities, forms, tracking
 from fastapi.middleware.cors import CORSMiddleware
 # Crea todas las tablas en la base de datos al arrancar
 Base.metadata.create_all(bind=engine)
@@ -53,6 +53,7 @@ app.include_router(routines.router)
 app.include_router(assignments.router)
 app.include_router(activities.router)
 app.include_router(forms.router)
+app.include_router(tracking.router)
 
 
 @app.get("/", tags=["Home"])
