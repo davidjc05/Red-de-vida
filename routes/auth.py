@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from auth.auth import (
     get_current_user,
 )
 
+import ratelimit
 from permissions import require_admin
 from email_codes import issue_code, check_code
 from email_service import email_enabled, send_email
@@ -57,7 +58,8 @@ class ChangePasswordIn(BaseModel):
 
 
 @router.post("/register", response_model=UserOut, status_code=201)
-def register(user_in: UserCreate, db: Session = Depends(get_db)):
+def register(request: Request, user_in: UserCreate, db: Session = Depends(get_db)):
+    ratelimit.hit(f"register:ip:{ratelimit.client_ip(request)}", 10, 3600)
     missing = [
         label for label, value in (
             ("teléfono", user_in.phone), ("país", user_in.country),
@@ -114,11 +116,23 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
+    # Límite por IP (general) y por email (solo cuenta los fallos): frena la adivinación de contraseñas
+    ratelimit.hit(f"login:ip:{ratelimit.client_ip(request)}", 30, 600)
+    email_key = f"login:fail:{form_data.username.strip().lower()}"
+    ratelimit.blocked(email_key, 5, 900)
+
     user = db.query(User).filter(User.email == form_data.username).first()
 
     if not user or not verify_password(form_data.password, user.hashed_password):
+        ratelimit.fail(email_key, 900)
         raise HTTPException(401, "Credenciales incorrectas")
+
+    ratelimit.reset(email_key)
 
     if not user.email_verified:
         raise HTTPException(403, "EMAIL_NO_VERIFICADO")
@@ -176,7 +190,9 @@ def promote(user_id: int, db: Session = Depends(get_db), _: User = Depends(requi
 # ─────────────────────────────────────────
 
 @router.post("/verify-email")
-def verify_email(data: VerifyIn, db: Session = Depends(get_db)):
+def verify_email(request: Request, data: VerifyIn, db: Session = Depends(get_db)):
+    ratelimit.hit(f"verify:ip:{ratelimit.client_ip(request)}", 30, 900)
+    ratelimit.hit(f"verify:email:{data.email.lower()}", 10, 900)
     user = db.query(User).filter(User.email == data.email).first()
     if not user or not check_code(db, data.email, "verify", data.code):
         raise HTTPException(400, "Código incorrecto o caducado")
@@ -186,7 +202,9 @@ def verify_email(data: VerifyIn, db: Session = Depends(get_db)):
 
 
 @router.post("/resend-code")
-def resend_code(data: EmailIn, db: Session = Depends(get_db)):
+def resend_code(request: Request, data: EmailIn, db: Session = Depends(get_db)):
+    ratelimit.hit(f"mail:ip:{ratelimit.client_ip(request)}", 10, 900)
+    ratelimit.hit(f"mail:email:{data.email.lower()}", 5, 900)
     user = db.query(User).filter(User.email == data.email).first()
     if user and not user.email_verified and email_enabled():
         _send_code(db, data.email, "verify")
@@ -194,7 +212,9 @@ def resend_code(data: EmailIn, db: Session = Depends(get_db)):
 
 
 @router.post("/forgot-password")
-def forgot_password(data: EmailIn, db: Session = Depends(get_db)):
+def forgot_password(request: Request, data: EmailIn, db: Session = Depends(get_db)):
+    ratelimit.hit(f"mail:ip:{ratelimit.client_ip(request)}", 10, 900)
+    ratelimit.hit(f"mail:email:{data.email.lower()}", 5, 900)
     if not email_enabled():
         raise HTTPException(503, "El envío de correos no está configurado en el servidor")
     user = db.query(User).filter(User.email == data.email).first()
@@ -204,7 +224,9 @@ def forgot_password(data: EmailIn, db: Session = Depends(get_db)):
 
 
 @router.post("/reset-password")
-def reset_password(data: ResetIn, db: Session = Depends(get_db)):
+def reset_password(request: Request, data: ResetIn, db: Session = Depends(get_db)):
+    ratelimit.hit(f"verify:ip:{ratelimit.client_ip(request)}", 30, 900)
+    ratelimit.hit(f"verify:email:{data.email.lower()}", 10, 900)
     user = db.query(User).filter(User.email == data.email).first()
     if not user or not check_code(db, data.email, "reset", data.code):
         raise HTTPException(400, "Código incorrecto o caducado")

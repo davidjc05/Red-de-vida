@@ -1,14 +1,11 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-from fastapi import Depends, HTTPException
-from sqlalchemy.orm import Session
-from database import get_db
-from models import User
 
 from database import get_db
 from models import User
@@ -39,7 +36,7 @@ def verify_password(plain, hashed):
 
 def create_access_token(data: dict):
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
     # ⚠️ IMPORTANTE: aseguramos que sub es string
     if "sub" in to_encode:
@@ -68,7 +65,7 @@ def get_current_user(
         if user_id is None:
             raise credentials_exception
 
-    except JWTError:
+    except (jwt.PyJWTError, ValueError):
         raise credentials_exception
 
     user = db.query(User).filter(User.id == int(user_id)).first()
