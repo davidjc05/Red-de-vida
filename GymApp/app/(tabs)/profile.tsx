@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator,
-  Switch, Alert, Platform, TextInput, Modal, Image, Dimensions,
+  Switch, Alert, Platform, TextInput, Modal, Image, Dimensions, Share,
 } from 'react-native';
 import { useColorScheme } from '../../hooks/use-color-scheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,7 +15,7 @@ import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import {
   getMe, deleteToken, getMyWorkoutLogs, getUsers, updateMe, setUserStatus,
-  changePassword,
+  changePassword, exportMyData, deleteMyAccount,
 } from '../../services/api';
 import { notify, confirmAction } from '../../services/ui';
 import { TrainerForms, SendFormModal, MyForms } from '../../components/FormsPanel';
@@ -288,6 +288,9 @@ export default function ProfileScreen() {
   const [pwNew, setPwNew] = useState('');
   const [pwNew2, setPwNew2] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
+  const [delModal, setDelModal] = useState(false);
+  const [delPw, setDelPw] = useState('');
+  const [delBusy, setDelBusy] = useState(false);
   const [editName, setEditName] = useState('');
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
   const [editPhone, setEditPhone] = useState('');
@@ -433,6 +436,43 @@ export default function ProfileScreen() {
     }
   };
 
+  // Descargar una copia de mis datos (JSON): archivo en web, "compartir" en el móvil
+  const handleExport = async () => {
+    try {
+      const text = await exportMyData();
+      if (Platform.OS === 'web') {
+        const doc = (globalThis as any).document;
+        const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+        const a = doc.createElement('a');
+        a.href = url;
+        a.download = 'mis-datos-red-de-vida.json';
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        await Share.share({ message: text, title: 'Mis datos de Red de Vida' });
+      }
+    } catch (e: any) {
+      notify('Error', e?.message ?? 'No se pudieron descargar tus datos');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!delPw) { notify('Contraseña', 'Escribe tu contraseña para confirmar.'); return; }
+    setDelBusy(true);
+    try {
+      await deleteMyAccount(delPw);
+      await deleteToken();
+      setDelModal(false);
+      setDelPw('');
+      notify('Cuenta eliminada', 'Tu cuenta y tus datos se han borrado.');
+      router.replace('/auth/login');
+    } catch (e: any) {
+      notify('Error', e?.message ?? 'No se pudo borrar la cuenta');
+    } finally {
+      setDelBusy(false);
+    }
+  };
+
   const handleLogout = () => {
     confirmAction('Cerrar sesión', '¿Seguro que quieres salir?', 'Salir', async () => {
       await deleteToken();
@@ -491,6 +531,33 @@ export default function ProfileScreen() {
                 {pwSaving
                   ? <ActivityIndicator color="#fff" />
                   : <Text style={{ color: '#fff', fontFamily: FBB, fontSize: 15 }}>Cambiar</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Modal eliminar cuenta ── */}
+      <Modal visible={delModal} transparent animationType="slide" onRequestClose={() => setDelModal(false)}>
+        <View style={s.modalOverlay}>
+          <View style={[s.modalCard, { backgroundColor: C.surface, borderColor: C.border }]}>
+            <Text style={[s.modalTitle, { color: negative }]}>Eliminar mi cuenta</Text>
+            <Text style={{ color: C.textSub, fontSize: 14, lineHeight: 20 }}>
+              Se borrarán para siempre tu perfil, tus rutinas asignadas, tus registros y tu actividad. Esta acción no se puede deshacer.
+            </Text>
+            <FormField C={C} label="Escribe tu contraseña para confirmar" value={delPw} onChange={setDelPw} secure autoCapitalize="none" />
+            <View style={s.modalBtns}>
+              <TouchableOpacity style={[s.modalBtnCancel, { borderColor: C.border }]} onPress={() => { setDelModal(false); setDelPw(''); }} disabled={delBusy}>
+                <Text style={{ color: C.textSub, fontFamily: FBB, fontSize: 15 }}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.modalBtnOk, { backgroundColor: negative, opacity: delBusy ? 0.6 : 1 }]}
+                onPress={handleDeleteAccount}
+                disabled={delBusy}
+              >
+                {delBusy
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={{ color: '#fff', fontFamily: FBB, fontSize: 15 }}>Eliminar</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -881,31 +948,22 @@ export default function ProfileScreen() {
               isDark={isDark}
             />
             <SettingRow
-              icon="🌙"
-              label="Tema oscuro"
-              sub="Activado automáticamente por el sistema"
-              right={
-                <Switch
-                  value={darkMode}
-                  onValueChange={setDarkMode}
-                  trackColor={{ false: C.border, true: Colors.primary }}
-                  ios_backgroundColor={C.border}
-                  thumbColor="#FFFFFF"
-                />
-              }
+              icon="📊"
+              label="Exportar datos"
+              sub="Descarga una copia de tus datos"
+              onPress={handleExport}
               isDark={isDark}
             />
             <SettingRow
-              icon="📊"
-              label="Exportar datos"
-              sub="Descarga tu historial de entrenamientos"
-              onPress={() => Alert.alert('Próximamente', 'Exportación de datos disponible pronto')}
+              icon="🔒"
+              label="Política de privacidad"
+              onPress={() => router.push('/privacy')}
               isDark={isDark}
             />
             <SettingRow
               icon="❓"
               label="Ayuda y soporte"
-              onPress={() => Alert.alert('Soporte', 'Contacta con tu entrenador para cualquier duda')}
+              onPress={() => notify('Soporte', 'Contacta con tu entrenador para cualquier duda')}
               isDark={isDark}
               last
             />
@@ -932,6 +990,15 @@ export default function ProfileScreen() {
             <Text style={[s.logoutText, { color: negative }]}>Cerrar sesión</Text>
           </TouchableOpacity>
         </View>
+
+        {/* ── Eliminar cuenta (solo clientes) ── */}
+        {!isAdmin && (
+          <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
+            <TouchableOpacity style={{ paddingVertical: 12, alignItems: 'center' }} onPress={() => setDelModal(true)}>
+              <Text style={{ color: negative, fontSize: 14, textDecorationLine: 'underline' }}>Eliminar mi cuenta</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* ── Versión ── */}
         <Text style={[s.version, { color: C.textSub }]}>Red de Vida v1.0.0</Text>

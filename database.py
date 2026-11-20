@@ -42,6 +42,8 @@ _USER_EXTRA_COLUMNS = {
     "birth_date": "DATE",
     "status": "VARCHAR NOT NULL DEFAULT 'active'",
     "email_verified": "BOOLEAN NOT NULL DEFAULT TRUE",
+    "consent_at": "TIMESTAMP",
+    "consent_version": "VARCHAR",
 }
 
 

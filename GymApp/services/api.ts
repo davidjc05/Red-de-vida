@@ -144,7 +144,7 @@ export async function register(
   name: string,
   email: string,
   password: string,
-  extra: ProfileFields = {},
+  extra: ProfileFields & { accept_terms?: boolean } = {},
 ) {
   const res = await wakeAwareFetch(`${API_URL}/auth/register`, {
     method: 'POST',
@@ -187,6 +187,24 @@ export async function changePassword(current_password: string, new_password: str
   });
   const data = await res.json();
   if (!res.ok) throw new Error(detailToText(data.detail, 'No se pudo cambiar la contraseña'));
+  return data;
+}
+
+// Derechos del usuario: descargar sus datos (texto JSON) y borrar su cuenta
+export async function exportMyData(): Promise<string> {
+  const res = await authFetch('/auth/me/export');
+  if (!res.ok) throw new Error('No se pudieron descargar tus datos');
+  return JSON.stringify(await res.json(), null, 2);
+}
+
+export async function deleteMyAccount(password: string) {
+  const res = await authFetch('/auth/me/delete', {
+    method: 'POST',
+    body: JSON.stringify({ password }),
+  });
+  let data: any = {};
+  try { data = await res.json(); } catch {}
+  if (!res.ok) throw new Error(detailToText(data.detail, 'No se pudo borrar la cuenta'));
   return data;
 }
 

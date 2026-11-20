@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from account import erase_client
 from auth.auth import hash_password
 from database import get_db
 from models import User
@@ -76,8 +77,9 @@ def delete_user(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    db.delete(user)
-    db.commit()
+    if user.role == "admin":
+        raise HTTPException(status_code=400, detail="No se puede borrar a un entrenador")
+    erase_client(db, user)
 
 
 

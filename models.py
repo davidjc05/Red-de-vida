@@ -28,6 +28,10 @@ class User(Base):
     status           = Column(String, default="active", nullable=False, server_default="active")
     email_verified   = Column(Boolean, default=True, nullable=False, server_default=true())
 
+    # Consentimiento de la política de privacidad (fecha UTC y versión del texto aceptado)
+    consent_at       = Column(DateTime, nullable=True)
+    consent_version  = Column(String, nullable=True)
+
     routines             = relationship("Routine", back_populates="user")
     assignments_received = relationship("Assignment", foreign_keys="Assignment.assigned_to_id", back_populates="assigned_to")
     assignments_sent     = relationship("Assignment", foreign_keys="Assignment.assigned_by_id", back_populates="assigned_by")

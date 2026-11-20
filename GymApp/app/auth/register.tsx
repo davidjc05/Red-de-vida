@@ -40,6 +40,7 @@ export default function RegisterScreen() {
   const [country, setCountry]   = useState('');
   const [city, setCity]         = useState('');
   const [birth, setBirth]       = useState('');
+  const [accepted, setAccepted] = useState(false);
 
   const strength = getPasswordStrength(password);
   const passwordsMatch   = password2.length > 0 && password === password2;
@@ -63,6 +64,10 @@ export default function RegisterScreen() {
       notify('Fecha no válida', 'Escribe solo los números de tu fecha de nacimiento, por ejemplo 17051990');
       return;
     }
+    if (!accepted) {
+      notify('Política de privacidad', 'Debes aceptar la política de privacidad para crear tu cuenta.');
+      return;
+    }
     setLoading(true);
     try {
       const created = await register(name.trim(), email.trim(), password, {
@@ -70,6 +75,7 @@ export default function RegisterScreen() {
         country: country.trim() || undefined,
         city: city.trim() || undefined,
         birth_date: birthIso,
+        accept_terms: true,
       });
 
       // Primero hay que comprobar que el email es real (código enviado al correo)
@@ -282,6 +288,26 @@ export default function RegisterScreen() {
               <Text style={s.successText}>✓ Las contraseñas coinciden</Text>
             )}
 
+            {/* POLÍTICA DE PRIVACIDAD */}
+            <TouchableOpacity
+              style={s.consentRow}
+              onPress={() => setAccepted(v => !v)}
+              activeOpacity={0.8}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: accepted }}
+            >
+              <View style={[s.checkbox, accepted && s.checkboxOn]}>
+                {accepted && <Text style={s.checkMark}>✓</Text>}
+              </View>
+              <Text style={s.consentText}>
+                He leído y acepto la{' '}
+                <Text style={s.consentLink} onPress={() => router.push('/privacy')}>
+                  política de privacidad
+                </Text>
+                , incluido el tratamiento de mis datos de entrenamiento y actividad.
+              </Text>
+            </TouchableOpacity>
+
             {/* BOTÓN */}
             <TouchableOpacity
               style={[s.btnPrimary, loading && { opacity: 0.6 }]}
@@ -455,6 +481,15 @@ const s = StyleSheet.create({
   },
 
   // Login
+  consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 14, marginBottom: 4 },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: GREEN,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', marginTop: 1,
+  },
+  checkboxOn: { backgroundColor: GREEN },
+  checkMark: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  consentText: { flex: 1, fontSize: 13, lineHeight: 19, color: '#1A1A1A' },
+  consentLink: { color: GREEN, fontWeight: '700', textDecorationLine: 'underline' },
   loginRow: {
     flexDirection: 'row',
     justifyContent: 'center',

@@ -1,10 +1,16 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import User
+from account import erase_client
+from legal import PRIVACY_VERSION
+from models import Activity, Assignment, FormSend, User, WorkoutLog
 from schemas import UserCreate, UserOut, UserUpdate, Token
 
 from auth.auth import (
@@ -39,6 +45,14 @@ def _send_code(db: Session, email: str, purpose: str) -> None:
         print(f"[email] fallo enviando a {email}: {e}")
 
 
+def _now() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)  # UTC sin zona, como el resto de columnas
+
+
+class DeleteAccountIn(BaseModel):
+    password: str
+
+
 class EmailIn(BaseModel):
     email: EmailStr
 
@@ -68,6 +82,8 @@ def register(request: Request, user_in: UserCreate, db: Session = Depends(get_db
     ]
     if missing:
         raise HTTPException(422, "Faltan datos obligatorios: " + ", ".join(missing))
+    if not user_in.accept_terms:
+        raise HTTPException(422, "Debes aceptar la política de privacidad para crear tu cuenta")
 
     existing = db.query(User).filter(User.email == user_in.email).first()
     if existing and existing.email_verified:
@@ -91,6 +107,8 @@ def register(request: Request, user_in: UserCreate, db: Session = Depends(get_db
         user.country = user_in.country
         user.city = user_in.city
         user.birth_date = user_in.birth_date
+        user.consent_at = _now()
+        user.consent_version = PRIVACY_VERSION
     else:
         user = User(
             name=user_in.name.strip(),
@@ -102,6 +120,8 @@ def register(request: Request, user_in: UserCreate, db: Session = Depends(get_db
             country=user_in.country,
             city=user_in.city,
             birth_date=user_in.birth_date,
+            consent_at=_now(),
+            consent_version=PRIVACY_VERSION,
         )
         db.add(user)
 
@@ -242,8 +262,96 @@ def change_password(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    ratelimit.hit(f"pw:user:{current_user.id}", 10, 900)
     if not verify_password(data.current_password, current_user.hashed_password):
         raise HTTPException(400, "La contraseña actual no es correcta")
     current_user.hashed_password = hash_password(data.new_password)
     db.commit()
+    return {"ok": True}
+
+
+# ─────────────────────────────────────────
+# DERECHOS DEL USUARIO (RGPD): descargar sus datos y borrar su cuenta
+# ─────────────────────────────────────────
+
+@router.get("/me/export")
+def export_my_data(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Devuelve en JSON todos los datos que la app guarda de la persona que lo pide."""
+    uid = current_user.id
+    assignments = (
+        db.query(Assignment).filter(Assignment.assigned_to_id == uid).order_by(Assignment.date).all()
+    )
+    logs = db.query(WorkoutLog).filter(WorkoutLog.user_id == uid).order_by(WorkoutLog.created_at).all()
+    activities = db.query(Activity).filter(Activity.user_id == uid).order_by(Activity.started_at).all()
+    sends = db.query(FormSend).filter(FormSend.user_id == uid).order_by(FormSend.sent_at).all()
+
+    data = {
+        "perfil": {
+            "nombre": current_user.name,
+            "email": current_user.email,
+            "telefono": current_user.phone,
+            "pais": current_user.country,
+            "ciudad": current_user.city,
+            "fecha_nacimiento": current_user.birth_date,
+            "peso_kg": current_user.weight_kg,
+            "rol": current_user.role,
+            "estado": current_user.status,
+            "politica_aceptada_el": current_user.consent_at,
+            "politica_version": current_user.consent_version,
+        },
+        "rutinas_asignadas": [
+            {
+                "fecha": a.date,
+                "rutina": a.routine.name if a.routine else None,
+                "estado": a.status,
+                "nota": a.note,
+                "confirmada_el": a.confirmed_at,
+            }
+            for a in assignments
+        ],
+        "registros_de_entrenamiento": [
+            {
+                "fecha": l.created_at,
+                "ejercicio": l.exercise.name if l.exercise else None,
+                "kg": l.kg,
+                "repeticiones": l.reps,
+            }
+            for l in logs
+        ],
+        "actividad": [
+            {
+                "tipo": a.kind,
+                "inicio": a.started_at,
+                "segundos": a.elapsed_s,
+                "distancia_m": a.distance_m,
+                "kcal": a.kcal,
+            }
+            for a in activities
+        ],
+        "formularios_recibidos": [
+            {"titulo": s.form.title if s.form else None, "enviado_el": s.sent_at} for s in sends
+        ],
+    }
+    return JSONResponse(
+        content=jsonable_encoder(data),
+        headers={"Content-Disposition": 'attachment; filename="mis-datos-red-de-vida.json"'},
+    )
+
+
+@router.post("/me/delete")
+def delete_my_account(
+    data: DeleteAccountIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """El propio cliente borra su cuenta y todos sus datos (pide la contraseña)."""
+    ratelimit.hit(f"pw:user:{current_user.id}", 10, 900)
+    if current_user.role == "admin":
+        raise HTTPException(400, "Una cuenta de entrenador no se puede borrar desde la app")
+    if not verify_password(data.password, current_user.hashed_password):
+        raise HTTPException(400, "La contraseña no es correcta")
+    erase_client(db, current_user)
     return {"ok": True}

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
-from datetime import date
+from datetime import date, datetime
 from pydantic import field_validator
 
 
@@ -16,6 +16,7 @@ class UserCreate(BaseModel):
     country: Optional[str] = Field(default=None, max_length=60)
     city: Optional[str] = Field(default=None, max_length=60)
     birth_date: Optional[date] = None
+    accept_terms: bool = False  # el registro exige aceptar la política de privacidad
 
     @field_validator("birth_date")
     @classmethod
@@ -55,6 +56,7 @@ class UserOut(BaseModel):
     birth_date: Optional[date] = None
     status: str = "active"
     email_verified: bool = True
+    consent_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

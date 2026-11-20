@@ -5,7 +5,7 @@ import jwt
 import auth.auth as auth_mod
 
 _n = itertools.count(1)
-REG = dict(phone="600111222", country="España", city="Madrid", birth_date="1990-05-17")
+REG = dict(phone="600111222", country="España", city="Madrid", birth_date="1990-05-17", accept_terms=True)
 
 
 def _register(c, email, password="password1", name="Test"):
