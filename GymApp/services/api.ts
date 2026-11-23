@@ -265,30 +265,33 @@ export async function getUsers() {
 }
 
 // ── SEGUIMIENTO (entrenadora) ────────────────────────────────
-export type TrackingClient = {
-  id: number;
+export type HistoryExercise = {
+  exercise_id: number;
   name: string;
-  email: string;
-  tracking_status: 'al_dia' | 'atencion' | 'inactivo' | 'sin_plan';
-  assigned_30d: number;
-  done_30d: number;
-  adherence_pct: number | null;
-  days_since_last: number | null;
-  next_date: string | null;
+  planned_sets: number | null;
+  planned_reps: number | null;
+  logged: boolean;
+  kg: number | null;
+  reps: number | null;
 };
-export type TrackingSummary = {
-  window_days: number;
-  pending_approvals: number;
-  active_clients: number;
-  counts: Record<'al_dia' | 'atencion' | 'inactivo' | 'sin_plan', number>;
-  avg_adherence_pct: number | null;
-  clients: TrackingClient[];
+export type HistoryWorkout = {
+  assignment_id: number;
+  date: string;
+  routine_name: string;
+  status: 'pending' | 'confirmed' | 'declined' | string;
+  note: string | null;
+  confirmed_at: string | null;
+  exercises: HistoryExercise[];
+};
+export type ClientHistory = {
+  client: { id: number; name: string };
+  workouts: HistoryWorkout[];
 };
 
-export async function getTrackingSummary(): Promise<TrackingSummary> {
-  const res = await authFetch('/tracking/summary');
+export async function getClientHistory(userId: number): Promise<ClientHistory> {
+  const res = await authFetch(`/tracking/client/${userId}`);
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'No se pudo cargar el seguimiento');
+  if (!res.ok) throw new Error(detailToText(data.detail, 'No se pudo cargar el seguimiento'));
   return data;
 }
 

@@ -1,112 +1,84 @@
-"""Seguimiento de clientes para la entrenadora: quién cumple y quién lleva días sin entrenar."""
-from datetime import date, datetime, timedelta
-
-from fastapi import APIRouter, Depends
-from sqlalchemy import func
-from sqlalchemy.orm import Session
+"""Seguimiento de un cliente para la entrenadora: todos sus entrenos y, en cada uno,
+los ejercicios con los pesos y repeticiones que registró."""
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session, selectinload
 
 from database import get_db
-from models import Activity, Assignment, User, WorkoutLog
+from models import Assignment, Block, Routine, User, WorkoutLog
 from permissions import require_admin
 
 router = APIRouter(prefix="/tracking", tags=["Seguimiento"])
 
-try:  # la fecha "de hoy" se calcula con la hora de España
-    from zoneinfo import ZoneInfo
 
-    _TZ = ZoneInfo("Europe/Madrid")
-except Exception:  # sin base de zonas horarias: se usa UTC
-    _TZ = None
+@router.get("/client/{user_id}")
+def client_history(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    user = db.get(User, user_id)
+    if not user or user.role == "admin":
+        raise HTTPException(404, "Cliente no encontrado")
 
-WINDOW_DAYS = 30
-ATTENTION_DAYS = 4   # a partir de aquí: "atención"
-INACTIVE_DAYS = 7    # a partir de aquí: "inactivo"
-
-
-def _today() -> date:
-    return datetime.now(_TZ).date() if _TZ else datetime.utcnow().date()
-
-
-def _status(assigned: int, upcoming, days_since):
-    if assigned == 0:
-        return "al_dia" if upcoming else "sin_plan"
-    if days_since is None or days_since >= INACTIVE_DAYS:
-        return "inactivo"
-    if days_since >= ATTENTION_DAYS:
-        return "atencion"
-    return "al_dia"
-
-
-@router.get("/summary")
-def summary(db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
-    today = _today()
-    since = today - timedelta(days=WINDOW_DAYS - 1)
-
-    clients = db.query(User).filter(User.role != "admin", User.status == "active").all()
-    pending = db.query(User).filter(User.role != "admin", User.status == "pending").count()
-    ids = [c.id for c in clients]
-
-    assigned, done, last_done, last_log, last_act, upcoming = {}, {}, {}, {}, {}, {}
-    if ids:
-        for uid, st, n in (
-            db.query(Assignment.assigned_to_id, Assignment.status, func.count(Assignment.id))
-            .filter(Assignment.assigned_to_id.in_(ids), Assignment.date.between(since, today))
-            .group_by(Assignment.assigned_to_id, Assignment.status)
-        ):
-            assigned[uid] = assigned.get(uid, 0) + n
-            if st == "confirmed":
-                done[uid] = n
-        last_done = dict(
-            db.query(Assignment.assigned_to_id, func.max(Assignment.confirmed_at))
-            .filter(Assignment.assigned_to_id.in_(ids), Assignment.status == "confirmed")
-            .group_by(Assignment.assigned_to_id)
+    assignments = (
+        db.query(Assignment)
+        .options(
+            selectinload(Assignment.routine)
+            .selectinload(Routine.blocks)
+            .selectinload(Block.exercises)
         )
-        last_log = dict(
-            db.query(WorkoutLog.user_id, func.max(WorkoutLog.created_at))
-            .filter(WorkoutLog.user_id.in_(ids))
-            .group_by(WorkoutLog.user_id)
-        )
-        last_act = dict(
-            db.query(Activity.user_id, func.max(Activity.started_at))
-            .filter(Activity.user_id.in_(ids))
-            .group_by(Activity.user_id)
-        )
-        upcoming = dict(
-            db.query(Assignment.assigned_to_id, func.min(Assignment.date))
-            .filter(Assignment.assigned_to_id.in_(ids), Assignment.date >= today)
-            .group_by(Assignment.assigned_to_id)
-        )
+        .filter(Assignment.assigned_to_id == user_id)
+        .order_by(Assignment.date.desc(), Assignment.id.desc())
+        .all()
+    )
 
-    rows = []
-    for c in clients:
-        seen = [d for d in (last_done.get(c.id), last_log.get(c.id), last_act.get(c.id)) if d]
-        last_seen = max(seen) if seen else None
-        days = max(0, (today - last_seen.date()).days) if last_seen else None
-        n_assigned = assigned.get(c.id, 0)
-        n_done = done.get(c.id, 0)
-        rows.append({
-            "id": c.id,
-            "name": c.name,
-            "email": c.email,
-            "tracking_status": _status(n_assigned, upcoming.get(c.id), days),
-            "assigned_30d": n_assigned,
-            "done_30d": n_done,
-            "adherence_pct": round(100 * n_done / n_assigned) if n_assigned else None,
-            "days_since_last": days,
-            "last_seen": last_seen.isoformat() if last_seen else None,
-            "next_date": upcoming[c.id].isoformat() if upcoming.get(c.id) else None,
+    # peso y repeticiones registrados (uno por ejercicio y entreno): {assignment_id: {exercise_id: log}}
+    logs: dict = {}
+    for log in (
+        db.query(WorkoutLog)
+        .options(selectinload(WorkoutLog.exercise))
+        .filter(WorkoutLog.user_id == user_id)
+        .order_by(WorkoutLog.created_at, WorkoutLog.id)
+    ):
+        logs.setdefault(log.assignment_id, {})[log.exercise_id] = log
+
+    def _entry(exercise_id, name, sets, reps, log):
+        return {
+            "exercise_id": exercise_id,
+            "name": name,
+            "planned_sets": sets,
+            "planned_reps": reps,
+            "logged": log is not None,
+            "kg": log.kg if log else None,
+            "reps": log.reps if log else None,
+        }
+
+    workouts = []
+    for a in assignments:
+        mine = dict(logs.get(a.id, {}))
+        exercises, seen = [], set()
+        if a.routine:
+            for block in a.routine.blocks:
+                for be in block.exercises:
+                    if be.exercise is None:
+                        continue
+                    first = be.exercise_id not in seen
+                    seen.add(be.exercise_id)
+                    log = mine.pop(be.exercise_id, None) if first else None
+                    exercises.append(_entry(be.exercise_id, be.exercise.name, be.sets, be.reps, log))
+        # ejercicios registrados que ya no están en la rutina (la rutina se editó después)
+        for exercise_id, log in mine.items():
+            name = log.exercise.name if log.exercise else f"Ejercicio {exercise_id}"
+            exercises.append(_entry(exercise_id, name, None, None, log))
+
+        workouts.append({
+            "assignment_id": a.id,
+            "date": a.date.isoformat(),
+            "routine_name": a.routine.name if a.routine else "Rutina eliminada",
+            "status": a.status or "pending",
+            "note": a.note,
+            "confirmed_at": a.confirmed_at.isoformat() if a.confirmed_at else None,
+            "exercises": exercises,
         })
 
-    order = {"inactivo": 0, "atencion": 1, "sin_plan": 2, "al_dia": 3}
-    rows.sort(key=lambda r: (order[r["tracking_status"]], -(r["days_since_last"] or 0), r["name"].lower()))
-
-    counts = {k: sum(1 for r in rows if r["tracking_status"] == k) for k in order}
-    rated = [r["adherence_pct"] for r in rows if r["adherence_pct"] is not None]
-    return {
-        "window_days": WINDOW_DAYS,
-        "pending_approvals": pending,
-        "active_clients": len(rows),
-        "counts": counts,
-        "avg_adherence_pct": round(sum(rated) / len(rated)) if rated else None,
-        "clients": rows,
-    }
+    return {"client": {"id": user.id, "name": user.name}, "workouts": workouts}
