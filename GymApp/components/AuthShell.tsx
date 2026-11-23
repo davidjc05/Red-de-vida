@@ -63,7 +63,7 @@ export function AuthButton({ text, onPress, loading, secondary }: {
 
 const s = StyleSheet.create({
   bg: { flex: 1 },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.15)' },
+  overlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(255,255,255,0.15)' },
   scroll: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   card: {
     backgroundColor: 'rgba(234,243,222,0.95)', borderRadius: 24, padding: 22,

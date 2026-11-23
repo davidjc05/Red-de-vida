@@ -157,7 +157,7 @@ const GREEN_MID = 'rgba(59,109,17,0.12)';
 const s = StyleSheet.create({
   bg: { flex: 1, width, height },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(240,248,232,0.25)',
   },
   kav: { flex: 1 },

@@ -373,6 +373,31 @@ export async function createRoutine(name: string) {
   return data;
 }
 
+// Copia una rutina completa (para usarla como plantilla)
+export async function duplicateRoutine(routineId: number) {
+  const res = await authFetch(`/routines/${routineId}/duplicate`, { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(detailToText(data.detail, 'No se pudo duplicar la rutina'));
+  return data;
+}
+
+// Copia las rutinas de una semana de un cliente a otra semana y/o a otros clientes
+export async function copyWeek(payload: {
+  source_user_id: number;
+  source_start: string;
+  target_user_ids: number[];
+  target_start: string;
+  weeks: number;
+}): Promise<{ created: number; skipped: number }> {
+  const res = await authFetch('/assignments/copy-week', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(detailToText(data.detail, 'No se pudo copiar la semana'));
+  return data;
+}
+
 export async function deleteRoutine(routineId: number) {
   const res = await authFetch(`/routines/${routineId}`, {
     method: 'DELETE',

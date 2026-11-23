@@ -361,7 +361,7 @@ const s = StyleSheet.create({
     paddingBottom: 24,
   },
   heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(255,255,255,0.45)',
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,

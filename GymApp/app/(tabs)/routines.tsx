@@ -2,20 +2,21 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Dimensions, TextInput, Modal,
-  FlatList, Alert, ActivityIndicator, Platform, KeyboardAvoidingView,
+  FlatList, ActivityIndicator, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { useColorScheme } from '../../hooks/use-color-scheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Plus, Search, X, ChevronLeft, ChevronRight, ChevronDown, Check,
-  UserPlus, CalendarDays, Pencil, Trash2, LogOut,
+  UserPlus, CalendarDays, Pencil, Trash2, LogOut, Copy,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import {
-  getExercises, createRoutine, assignRoutine, getUsers, deleteToken, deleteRoutine,
+  getExercises, createRoutine, assignRoutine, getUsers, deleteToken, deleteRoutine, duplicateRoutine,
   getAssignmentsByRoutine, deleteAssignment, getToken, updateRoutineFull
 } from '../../services/api';
+import { notify, confirmAction } from '../../services/ui';
 import { useRoutines, type Routine, type Exercise } from '../../hooks/useRoutines';
 
 // Mismas fuentes que calendario y perfil
@@ -105,7 +106,7 @@ export default function RoutinesScreen() {
 
   const confirmNameAndOpenBuilder = () => {
     if (!pendingRoutineName.trim()) {
-      Alert.alert('Error', 'Escribe un nombre para la rutina');
+      notify('Error', 'Escribe un nombre para la rutina');
       return;
     }
     setRoutineName(pendingRoutineName.trim());
@@ -160,10 +161,10 @@ export default function RoutinesScreen() {
   const updateBlockName = (id: string, v: string) => setBlocks(p => p.map(b => b.localId === id ? { ...b, name: v } : b));
 
   const addFromLibrary = useCallback((ex: Exercise) => {
-    if (!selectedBlockId) { Alert.alert('Selecciona un bloque', 'Primero crea o selecciona un bloque.'); return; }
+    if (!selectedBlockId) { notify('Selecciona un bloque', 'Primero crea o selecciona un bloque.'); return; }
     setBlocks(prev => prev.map(b => {
       if (b.localId !== selectedBlockId) return b;
-      if (b.exercises.some(e => e.exerciseId === ex.id)) { Alert.alert('Ya añadido', 'Este ejercicio ya está en el bloque.'); return b; }
+      if (b.exercises.some(e => e.exerciseId === ex.id)) { notify('Ya añadido', 'Este ejercicio ya está en el bloque.'); return b; }
       const newEx: BlockExercise = { localId: uid(), exerciseId: ex.id, name: ex.name, muscle_group: ex.muscle_group, series: '3', objetivo: '10 reps', descanso: '60s' };
       return { ...b, collapsed: false, exercises: [...b.exercises, newEx] };
     }));
@@ -177,8 +178,8 @@ export default function RoutinesScreen() {
 
   // ─── Guardar rutina ───────────────────────────────────────────────────────────
   const saveRoutine = async () => {
-    if (!routineName.trim()) { Alert.alert('Error', 'La rutina necesita un nombre'); return; }
-    if (blocks.length === 0) { Alert.alert('Error', 'Añade al menos un bloque'); return; }
+    if (!routineName.trim()) { notify('Error', 'La rutina necesita un nombre'); return; }
+    if (blocks.length === 0) { notify('Error', 'Añade al menos un bloque'); return; }
 
     setSaving(true);
     try {
@@ -195,17 +196,17 @@ export default function RoutinesScreen() {
       };
       if (editingRoutineId) {
         await updateRoutineFull(editingRoutineId, payload.name, payload.blocks);
-        Alert.alert('Rutina actualizada');
+        notify('Rutina actualizada');
       } else {
         const routine = await createRoutine(payload.name);
         await updateRoutineFull(routine.id, payload.name, payload.blocks);
-        Alert.alert('Rutina creada');
+        notify('Rutina creada');
       }
       await reload();
       setMode('list');
       setEditingRoutineId(null);
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      notify('Error', err.message);
     } finally {
       setSaving(false);
     }
@@ -221,15 +222,15 @@ export default function RoutinesScreen() {
   };
 
   const confirmAssign = async () => {
-    if (!selectedRoutine || selectedUserIds.length === 0 || !assignDate) { Alert.alert('Faltan datos'); return; }
+    if (!selectedRoutine || selectedUserIds.length === 0 || !assignDate) { notify('Faltan datos'); return; }
     const formattedDate = new Date(assignDate).toISOString().split('T')[0];
     setAssigning(true);
     try {
       await assignRoutine(selectedRoutine.id, selectedUserIds, formattedDate, assignNote || undefined);
       setShowAssignModal(false);
-      Alert.alert('Asignadas correctamente');
+      notify('Asignadas correctamente');
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      notify('Error', err.message);
     } finally {
       setAssigning(false);
     }
@@ -243,7 +244,7 @@ export default function RoutinesScreen() {
       const data = await getAssignmentsByRoutine(routine.id);
       setRoutineAssignments(data);
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      notify('Error', err.message);
     } finally {
       setLoadingAssignments(false);
     }
@@ -253,31 +254,27 @@ export default function RoutinesScreen() {
     try {
       await deleteAssignment(id);
       setRoutineAssignments(prev => prev.filter(a => a.id !== id));
-      Alert.alert('Eliminada');
+      notify('Eliminada');
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      notify('Error', err.message);
     }
   };
 
   // ─── Borrar rutina ────────────────────────────────────────────────────────────
-  // window.confirm no existe en iOS/Android: en nativo se usa Alert, en web se mantiene el confirm
+  const handleDuplicateRoutine = (routine: Routine) => {
+    duplicateRoutine(routine.id)
+      .then(() => reload())
+      .then(() => notify('Rutina duplicada', `Se ha creado "${routine.name} (copia)". Puedes editarla y asignarla.`))
+      .catch((err: any) => notify('Error', err.message));
+  };
+
   const handleDeleteRoutine = (routine: Routine) => {
-    const doDelete = () =>
+    confirmAction('Eliminar rutina', `¿Eliminar "${routine.name}"?`, 'Eliminar', () => {
       deleteRoutine(routine.id)
         .then(() => reload())
-        .then(() => (Platform.OS === 'web' ? window.alert('Eliminada') : Alert.alert('Eliminada')))
-        .catch((err: any) =>
-          Platform.OS === 'web' ? window.alert('Error: ' + err.message) : Alert.alert('Error', err.message)
-        );
-
-    if (Platform.OS === 'web') {
-      if (window.confirm(`¿Eliminar "${routine.name}"?`)) doDelete();
-      return;
-    }
-    Alert.alert('Eliminar rutina', `¿Eliminar "${routine.name}"?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: doDelete },
-    ]);
+        .then(() => notify('Eliminada'))
+        .catch((err: any) => notify('Error', err.message));
+    }, true);
   };
 
   // ─── Derivados ────────────────────────────────────────────────────────────────
@@ -769,13 +766,12 @@ export default function RoutinesScreen() {
             <TouchableOpacity
               style={s.builderBackBtn}
               onPress={() => {
-                Alert.alert(
+                confirmAction(
                   'Salir del editor',
                   '¿Seguro? Los cambios no guardados se perderán.',
-                  [
-                    { text: 'Cancelar', style: 'cancel' },
-                    { text: 'Salir', style: 'destructive', onPress: () => { setMode('list'); setEditingRoutineId(null); } }
-                  ]
+                  'Salir',
+                  () => { setMode('list'); setEditingRoutineId(null); },
+                  true,
                 );
               }}
             >
@@ -989,6 +985,15 @@ export default function RoutinesScreen() {
                       >
                         <Pencil size={16} color={C.textSub} />
                         <Text style={[s.footerBtnText, { color: C.text }]}>Editar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[s.footerBtn, { borderRightColor: C.border }]}
+                        onPress={() => handleDuplicateRoutine(routine)}
+                        activeOpacity={0.7}
+                        accessibilityLabel="Duplicar rutina"
+                      >
+                        <Copy size={16} color={C.textSub} />
+                        <Text style={[s.footerBtnText, { color: C.text }]}>Duplicar</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[s.footerBtn, { borderRightWidth: 0 }]}

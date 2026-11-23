@@ -181,6 +181,43 @@ def create_routine(
 
 
 # ─────────────────────────────
+# DUPLICAR
+# ─────────────────────────────
+
+@router.post("/{routine_id}/duplicate", status_code=201)
+def duplicate_routine(
+    routine: Routine = Depends(get_routine_or_403),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Copia una rutina completa (bloques y ejercicios) para usarla como plantilla."""
+    copy = Routine(
+        name=f"{routine.name} (copia)",
+        description=routine.description,
+        user_id=current_user.id,
+        date=date.today(),
+    )
+    db.add(copy)
+    db.flush()
+
+    for block in sorted(routine.blocks, key=lambda b: b.id):
+        new_block = Block(routine_id=copy.id, name=block.name)
+        db.add(new_block)
+        db.flush()
+        for be in sorted(block.exercises, key=lambda e: e.id):
+            db.add(BlockExercise(
+                block_id=new_block.id,
+                exercise_id=be.exercise_id,
+                sets=be.sets,
+                reps=be.reps,
+            ))
+
+    db.commit()
+    db.refresh(copy)
+    return serialize_routine(copy)
+
+
+# ─────────────────────────────
 # UPDATE FULL (BLOQUES)
 # ─────────────────────────────
 

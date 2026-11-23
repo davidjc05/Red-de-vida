@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TextInput,
-  StyleSheet, ActivityIndicator, Alert,
+  StyleSheet, ActivityIndicator,
   TouchableOpacity, SafeAreaView,
-  Modal, ScrollView, Image, Linking,Platform,
+  Modal, ScrollView, Image, Linking, Platform,
 } from 'react-native';
 import { getExercises, createExercise, updateExercise, deleteExercise, getRole } from '../../services/api';
+import { notify, confirmAction } from '../../services/ui';
 
 const G = {
   primary:     '#3B6D11',
@@ -219,7 +220,7 @@ const ExerciseEditModal = ({ exercise, onClose, onSaved }: EditModalProps) => {
   if (!exercise) return null;
 
   const handleSave = async () => {
-    if (!form.name.trim()) { Alert.alert('Error', 'El nombre es obligatorio'); return; }
+    if (!form.name.trim()) { notify('Error', 'El nombre es obligatorio'); return; }
     setSaving(true);
     try {
       await updateExercise(exercise.id, {
@@ -232,7 +233,7 @@ const ExerciseEditModal = ({ exercise, onClose, onSaved }: EditModalProps) => {
       onSaved();
       onClose();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      notify('Error', e.message);
     } finally {
       setSaving(false);
     }
@@ -319,7 +320,7 @@ export default function ExercisesScreen() {
       const data = await getExercises(group === 'Todos' ? undefined : group);
       setExercises(data);
     } catch (e: any) {
-      Alert.alert('Error cargando ejercicios', e.message);
+      notify('Error cargando ejercicios', e.message);
     } finally {
       setLoading(false);
     }
@@ -335,7 +336,7 @@ export default function ExercisesScreen() {
   const handleFilterChange = (group: string) => { setFilter(group); load(group); };
 
   const handleSave = async () => {
-    if (!form.name.trim()) { Alert.alert('Error', 'El nombre es obligatorio'); return; }
+    if (!form.name.trim()) { notify('Error', 'El nombre es obligatorio'); return; }
     setSaving(true);
     try {
       await createExercise({
@@ -349,47 +350,30 @@ export default function ExercisesScreen() {
       setForm(EMPTY_FORM);
       await load(filter);
     } catch (e: any) {
-      Alert.alert('Error al guardar', e.message);
+      notify('Error al guardar', e.message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (exercise: Exercise) => {
-
-    const confirmar =
-      Platform.OS === 'web'
-        ? window.confirm(`¿Seguro que quieres eliminar "${exercise.name}"?`)
-        : true;
-
-    if (!confirmar) return;
-
     const borrar = async () => {
       try {
         await deleteExercise(exercise.id);
 
         await load(filter);
       } catch (e: any) {
-        Alert.alert("Error", e.message);
+        notify("Error", e.message);
       }
     };
 
-    if (Platform.OS === 'web') {
-      await borrar();
-    } else {
-      Alert.alert(
-        "Eliminar ejercicio",
-        `¿Seguro que quieres eliminar "${exercise.name}"?`,
-        [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Eliminar",
-            style: "destructive",
-            onPress: borrar,
-          },
-        ]
-      );
-    }
+    confirmAction(
+      'Eliminar ejercicio',
+      `¿Seguro que quieres eliminar "${exercise.name}"? También desaparecerá de las rutinas que lo usen.`,
+      'Eliminar',
+      borrar,
+      true,
+    );
   };
 
   const displayed = exercises.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));

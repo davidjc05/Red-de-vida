@@ -37,6 +37,85 @@ class WorkoutLogSchema(BaseModel):
     reps: int = Field(ge=0, le=1000)
 
 
+class CopyWeekIn(BaseModel):
+    source_user_id: int
+    source_start: date          # cualquier día de la semana de origen
+    target_user_ids: list[int] = Field(min_length=1, max_length=50)
+    target_start: date          # cualquier día de la primera semana de destino
+    weeks: int = Field(default=1, ge=1, le=12)  # cuántas semanas seguidas se rellenan
+
+
+def _monday(d: date) -> date:
+    return d - timedelta(days=d.weekday())
+
+
+# ─────────────────────────────────────────
+# COPIAR UNA SEMANA (entrenadora)
+# ─────────────────────────────────────────
+
+@router.post("/copy-week")
+def copy_week(
+    data: CopyWeekIn,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Copia las rutinas que un cliente tiene en una semana a otras semanas y/o a otros
+    clientes. No duplica lo que ya existe (mismo cliente, rutina y día)."""
+    src_monday = _monday(data.source_start)
+    tgt_monday = _monday(data.target_start)
+
+    if tgt_monday == src_monday and data.weeks == 1 and data.target_user_ids == [data.source_user_id]:
+        raise HTTPException(400, "El origen y el destino son la misma semana del mismo cliente")
+
+    source = (
+        db.query(Assignment)
+        .filter(
+            Assignment.assigned_to_id == data.source_user_id,
+            Assignment.date >= src_monday,
+            Assignment.date <= src_monday + timedelta(days=6),
+        )
+        .order_by(Assignment.date, Assignment.id)
+        .all()
+    )
+    if not source:
+        raise HTTPException(400, "El cliente no tiene rutinas en la semana de origen")
+
+    targets = (
+        db.query(User)
+        .filter(User.id.in_(data.target_user_ids), User.role != "admin", User.status == "active")
+        .all()
+    )
+    if not targets:
+        raise HTTPException(400, "No hay clientes activos de destino")
+
+    created = skipped = 0
+    for week in range(data.weeks):
+        shift = (tgt_monday - src_monday) + timedelta(days=7 * week)
+        for target in targets:
+            for a in source:
+                new_date = a.date + shift
+                exists = db.query(Assignment.id).filter(
+                    Assignment.assigned_to_id == target.id,
+                    Assignment.routine_id == a.routine_id,
+                    Assignment.date == new_date,
+                ).first()
+                if exists:
+                    skipped += 1
+                    continue
+                db.add(Assignment(
+                    routine_id=a.routine_id,
+                    assigned_to_id=target.id,
+                    assigned_by_id=admin.id,
+                    note=a.note,
+                    date=new_date,
+                    status="pending",
+                ))
+                created += 1
+
+    db.commit()
+    return {"created": created, "skipped": skipped}
+
+
 # ─────────────────────────────────────────
 # CREAR ASIGNACIONES
 # ─────────────────────────────────────────

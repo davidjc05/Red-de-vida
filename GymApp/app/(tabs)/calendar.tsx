@@ -7,6 +7,7 @@ import {
 import { useColorScheme } from '../../hooks/use-color-scheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import CopyWeekModal from '../../components/CopyWeekModal';
 import { getMyAssignments, getClientAssignments, getRole, confirmWorkout, saveWorkoutLog } from '../../services/api';
 import { Colors } from '../../constants/colors';
 
@@ -91,6 +92,8 @@ export default function CalendarScreen() {
   const [activeWorkout, setActiveWorkout] = useState<Assignment[]>([]);
   const [logs, setLogs] = useState<any>({});
   const [isAdmin, setIsAdmin] = useState(false);
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const C = {
     bg:      isDark ? '#111111' : '#F2F5EE',
@@ -140,7 +143,7 @@ export default function CalendarScreen() {
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
     })();
-  }, []);
+  }, [reloadKey]);
 
   const grid = getMonthGrid(viewYear, viewMonth);
   const eventsOnDay = (d: Date) => assignments.filter(a => a.due_date === toDateString(d));
@@ -680,7 +683,18 @@ export default function CalendarScreen() {
             <ChevronRight size={20} color={C.text} />
           </TouchableOpacity>
         </View>
-        <View style={{ width: 60 }} />
+        {isAdmin ? (
+          <TouchableOpacity
+            style={s.copyBtn}
+            onPress={() => setCopyOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Copiar semana"
+          >
+            <Text style={s.todayBtnText}>Copiar</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 60 }} />
+        )}
 
         {/* Stats mensuales */}
         <View style={[s.heroStats, { backgroundColor: C.surface, borderColor: C.border }]}>
@@ -751,6 +765,15 @@ export default function CalendarScreen() {
       )}
 
       <EventModal />
+      {isAdmin && (
+        <CopyWeekModal
+          visible={copyOpen}
+          onClose={() => setCopyOpen(false)}
+          onDone={() => setReloadKey(k => k + 1)}
+          C={C}
+          initialDate={selectedDate}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -772,6 +795,15 @@ const s = StyleSheet.create({
     height: 44,
     justifyContent: 'center',
     paddingRight: 12,
+    zIndex: 1,
+  },
+  copyBtn: {
+    position: 'absolute',
+    right: 16,
+    top: 8,
+    height: 44,
+    justifyContent: 'center',
+    paddingLeft: 12,
     zIndex: 1,
   },
   todayBtnText: {
