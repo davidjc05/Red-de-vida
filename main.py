@@ -1,8 +1,10 @@
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from sqlalchemy import text
 from database import engine, Base, ensure_user_columns, rename_muscle_groups
+import reminders
 from routes import assignments, users, exercises, routines, auth, activities, forms, tracking
 from fastapi.middleware.cors import CORSMiddleware
 # Crea todas las tablas en la base de datos al arrancar
@@ -19,7 +21,14 @@ _DEFAULT_ORIGINS = [
 _origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()] or _DEFAULT_ORIGINS
 _docs = os.getenv("DISABLE_DOCS") != "1"
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    reminders.start_scheduler()  # recordatorios por correo (solo si Brevo está configurado)
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="Gym API",
     description="""
 ## API REST para gestión de entrenamientos

@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 
 from models import (
-    Activity, Assignment, EmailCode, FormSend, Routine, User, WorkoutLog,
+    Activity, Assignment, EmailCode, FormSend, NotificationLog, Routine, User, WorkoutLog,
 )
 
 
@@ -36,6 +36,7 @@ def erase_client(db: Session, user: User) -> None:
 
     db.query(Activity).filter(Activity.user_id == uid).delete(synchronize_session=False)
     db.query(FormSend).filter(FormSend.user_id == uid).delete(synchronize_session=False)
+    db.query(NotificationLog).filter(NotificationLog.user_id == uid).delete(synchronize_session=False)
     db.query(EmailCode).filter(EmailCode.email == user.email).delete(synchronize_session=False)
 
     db.flush()

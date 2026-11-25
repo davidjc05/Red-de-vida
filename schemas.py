@@ -34,6 +34,7 @@ class UserUpdate(BaseModel):
     city: Optional[str] = Field(default=None, max_length=60)
     birth_date: Optional[date] = None
     weight_kg: Optional[float] = Field(default=None, gt=0, le=500)
+    email_reminders: Optional[bool] = None
 
     @field_validator("birth_date")
     @classmethod
@@ -57,6 +58,7 @@ class UserOut(BaseModel):
     status: str = "active"
     email_verified: bool = True
     consent_at: Optional[datetime] = None
+    email_reminders: bool = True
 
     class Config:
         from_attributes = True

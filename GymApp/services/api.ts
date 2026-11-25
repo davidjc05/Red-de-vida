@@ -209,13 +209,22 @@ export async function deleteMyAccount(password: string) {
 }
 
 // El propio usuario edita su perfil
-export async function updateMe(fields: ProfileFields & { name?: string; weight_kg?: number }) {
+export async function updateMe(fields: ProfileFields & { name?: string; weight_kg?: number; email_reminders?: boolean }) {
   const res = await authFetch('/auth/me', {
     method: 'PATCH',
     body: JSON.stringify(fields),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(detailToText(data.detail, 'No se pudo guardar el perfil'));
+  return data;
+}
+
+// Envía al propio usuario un correo de prueba de los recordatorios
+export async function sendTestReminder() {
+  const res = await authFetch('/auth/me/test-reminder', { method: 'POST' });
+  let data: any = {};
+  try { data = await res.json(); } catch {}
+  if (!res.ok) throw new Error(detailToText(data.detail, 'No se pudo enviar el correo de prueba'));
   return data;
 }
 

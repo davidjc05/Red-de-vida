@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date, DateTime, Boolean, true
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date, DateTime, Boolean, UniqueConstraint, true
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -31,6 +31,9 @@ class User(Base):
     # Consentimiento de la política de privacidad (fecha UTC y versión del texto aceptado)
     consent_at       = Column(DateTime, nullable=True)
     consent_version  = Column(String, nullable=True)
+
+    # Recordatorios por correo (rutina de hoy / clientes inactivos). Se desactivan desde el perfil.
+    email_reminders  = Column(Boolean, default=True, nullable=False, server_default=true())
 
     routines             = relationship("Routine", back_populates="user")
     assignments_received = relationship("Assignment", foreign_keys="Assignment.assigned_to_id", back_populates="assigned_to")
@@ -250,3 +253,18 @@ class FormSend(Base):
     email_sent = Column(Boolean, nullable=False, default=False)
 
     form = relationship("Form")
+
+
+# ─────────────────────────────────────────
+# AVISOS ENVIADOS (evita repetir el mismo correo el mismo día)
+# ─────────────────────────────────────────
+
+class NotificationLog(Base):
+    __tablename__ = "notification_logs"
+    __table_args__ = (UniqueConstraint("kind", "user_id", "day", name="uq_notification_kind_user_day"),)
+
+    id         = Column(Integer, primary_key=True, index=True)
+    kind       = Column(String, nullable=False)
+    user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    day        = Column(Date, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)

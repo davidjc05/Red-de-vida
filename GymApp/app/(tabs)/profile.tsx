@@ -15,7 +15,7 @@ import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import {
   getMe, deleteToken, getMyWorkoutLogs, getUsers, updateMe, setUserStatus,
-  changePassword, exportMyData, deleteMyAccount,
+  changePassword, exportMyData, deleteMyAccount, sendTestReminder,
 } from '../../services/api';
 import ClientTracking from '../../components/ClientTracking';
 import { notify, confirmAction } from '../../services/ui';
@@ -282,7 +282,7 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState(isDark);
-  const [notifications, setNotifications] = useState(true);
+  const [testingMail, setTestingMail] = useState(false);
   const [editModal, setEditModal] = useState(false);
   const [pwModal, setPwModal] = useState(false);
   const [pwCurrent, setPwCurrent] = useState('');
@@ -454,6 +454,30 @@ export default function ProfileScreen() {
       }
     } catch (e: any) {
       notify('Error', e?.message ?? 'No se pudieron descargar tus datos');
+    }
+  };
+
+  // Recordatorios por correo: se guarda al momento; si falla, se deshace el cambio
+  const handleToggleReminders = async (value: boolean) => {
+    const before = user;
+    setUser((u: any) => (u ? { ...u, email_reminders: value } : u));
+    try {
+      await updateMe({ email_reminders: value });
+    } catch (e: any) {
+      setUser(before);
+      notify('Error', e?.message ?? 'No se pudo guardar el ajuste');
+    }
+  };
+
+  const handleTestMail = async () => {
+    setTestingMail(true);
+    try {
+      await sendTestReminder();
+      notify('Correo enviado', `Te hemos enviado un correo de prueba a ${user?.email ?? 'tu email'}. Si no lo ves, mira en spam.`);
+    } catch (e: any) {
+      notify('No se pudo enviar', e?.message ?? 'Inténtalo de nuevo más tarde');
+    } finally {
+      setTestingMail(false);
     }
   };
 
@@ -943,17 +967,24 @@ export default function ProfileScreen() {
           <View style={[s.settingsCard, { backgroundColor: C.surface, borderColor: C.border }]}>
             <SettingRow
               icon="🔔"
-              label="Notificaciones"
-              sub="Avisos de nuevas rutinas"
+              label="Recordatorios por correo"
+              sub={isAdmin ? 'Rutina de hoy y clientes que llevan días sin entrenar' : 'Te avisamos por la mañana si tienes rutina ese día'}
               right={
                 <Switch
-                  value={notifications}
-                  onValueChange={setNotifications}
+                  value={user?.email_reminders !== false}
+                  onValueChange={handleToggleReminders}
                   trackColor={{ false: C.border, true: Colors.primary }}
                   ios_backgroundColor={C.border}
                   thumbColor="#FFFFFF"
                 />
               }
+              isDark={isDark}
+            />
+            <SettingRow
+              icon="✉️"
+              label={testingMail ? 'Enviando…' : 'Enviarme un correo de prueba'}
+              sub="Comprueba que los recordatorios te llegan"
+              onPress={testingMail ? undefined : handleTestMail}
               isDark={isDark}
             />
             <SettingRow

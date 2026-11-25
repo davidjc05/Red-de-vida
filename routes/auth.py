@@ -8,6 +8,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from database import get_db
+import reminders
 from account import erase_client
 from legal import PRIVACY_VERSION
 from models import Activity, Assignment, FormSend, User, WorkoutLog
@@ -184,6 +185,8 @@ def update_me(
             value = value.strip() or None
         if field == "name" and value is None:
             continue  # el nombre no puede quedar vacío
+        if field == "email_reminders" and value is None:
+            continue
         setattr(current_user, field, value)
 
     db.commit()
@@ -354,4 +357,22 @@ def delete_my_account(
     if not verify_password(data.password, current_user.hashed_password):
         raise HTTPException(400, "La contraseña no es correcta")
     erase_client(db, current_user)
+    return {"ok": True}
+
+
+@router.post("/me/test-reminder")
+def send_test_reminder(current_user: User = Depends(get_current_user)):
+    """Envía al propio usuario un correo de prueba para comprobar que los avisos le llegan."""
+    if not email_enabled():
+        raise HTTPException(503, "El envío de correos no está configurado en el servidor")
+    ratelimit.hit(f"test-mail:user:{current_user.id}", 3, 3600)
+    first = (current_user.name or "").split(" ")[0] or "hola"
+    body = (
+        f"Hola {first},\n\nEste es un correo de prueba de Red de Vida. "
+        "Si lo estás leyendo, los recordatorios te llegarán bien." + reminders._footer()
+    )
+    try:
+        send_email(current_user.email, "Prueba de recordatorios de Red de Vida", body)
+    except Exception:
+        raise HTTPException(502, "No se pudo enviar el correo. Inténtalo de nuevo en unos minutos")
     return {"ok": True}

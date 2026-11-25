@@ -44,6 +44,7 @@ _USER_EXTRA_COLUMNS = {
     "email_verified": "BOOLEAN NOT NULL DEFAULT TRUE",
     "consent_at": "TIMESTAMP",
     "consent_version": "VARCHAR",
+    "email_reminders": "BOOLEAN NOT NULL DEFAULT TRUE",
 }
 
 
