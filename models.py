@@ -191,6 +191,8 @@ class WorkoutLog(Base):
     exercise_id   = Column(Integer, ForeignKey("exercises.id"))
     kg            = Column(Float, nullable=True)
     reps          = Column(Integer, nullable=True)
+    # Cada fila es UNA serie. Las filas antiguas (una por ejercicio) cuentan como serie 1.
+    set_number    = Column(Integer, nullable=False, default=1, server_default="1")
     created_at    = Column(DateTime, default=datetime.utcnow)
 
     # ✅ Relación para acceder a log.exercise.name en los endpoints

@@ -330,12 +330,15 @@ export default function ProfileScreen() {
 
   // ── Procesar logs por ejercicio ───────────────────────────────────────────
   const exerciseProgress: Record<string, { name: string; data: { date: string; kg: number }[]; maxKg: number }> = {};
+  // Cada fila de logs es una serie. En la gráfica se muestra un punto por día y ejercicio: la serie más pesada.
   logs.forEach((log: any) => {
     const name = log.exercise?.name ?? log.exercise_name ?? `Ejercicio ${log.exercise_id}`;
     const kg = Number(log.kg ?? 0);
     const date = log.date ?? log.created_at?.split('T')[0] ?? '';
     if (!exerciseProgress[name]) exerciseProgress[name] = { name, data: [], maxKg: 0 };
-    exerciseProgress[name].data.push({ date, kg });
+    const point = exerciseProgress[name].data.find(d => d.date === date);
+    if (point) point.kg = Math.max(point.kg, kg);
+    else exerciseProgress[name].data.push({ date, kg });
     if (kg > exerciseProgress[name].maxKg) exerciseProgress[name].maxKg = kg;
   });
 

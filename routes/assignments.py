@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from database import get_db
 from models import (
     Assignment,
+    Exercise,
     Routine,
     User,
     RoutineExercise,
@@ -30,11 +31,27 @@ class ConfirmWorkoutSchema(BaseModel):
     status: Literal["confirmed", "declined"]
 
 
+MAX_SETS = 20   # series máximas por ejercicio y entreno
+
+
 class WorkoutLogSchema(BaseModel):
     assignment_id: int
     exercise_id: int
     kg: float = Field(ge=0, le=1000)
     reps: int = Field(ge=0, le=1000)
+    set_number: int = Field(default=1, ge=1, le=MAX_SETS)   # la app antigua no lo envía: serie 1
+
+
+class SetIn(BaseModel):
+    kg: float = Field(ge=0, le=1000)
+    reps: int = Field(ge=0, le=1000)
+
+
+class ExerciseSetsIn(BaseModel):
+    """Todas las series de un ejercicio en un entreno. Sustituye a las que hubiera guardadas."""
+    assignment_id: int
+    exercise_id: int
+    sets: list[SetIn] = Field(max_length=MAX_SETS)
 
 
 class CopyWeekIn(BaseModel):
@@ -304,7 +321,7 @@ def get_my_logs(
     logs = (
         db.query(WorkoutLog)
         .filter(WorkoutLog.user_id == current_user.id)
-        .order_by(WorkoutLog.created_at)
+        .order_by(WorkoutLog.created_at, WorkoutLog.id)
         .all()
     )
     return [
@@ -312,6 +329,7 @@ def get_my_logs(
             "id": log.id,
             "assignment_id": log.assignment_id,
             "exercise_id": log.exercise_id,
+            "set_number": log.set_number or 1,
             "kg": log.kg,
             "reps": log.reps,
             "created_at": str(log.created_at),
@@ -387,50 +405,101 @@ def get_assignments_by_routine(
 # GUARDAR PESOS / REPS
 # ─────────────────────────────────────────
 
+def _my_assignment(db: Session, assignment_id: int, exercise_id: int, user: User) -> None:
+    """Comprueba que la asignación es mía y que el ejercicio existe."""
+    assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada")
+    if assignment.assigned_to_id != user.id:
+        raise HTTPException(status_code=403, detail="No autorizado")
+    if not db.get(Exercise, exercise_id):
+        raise HTTPException(status_code=404, detail="Ejercicio no encontrado")
+
+
 @router.post("/log")
 def save_workout_log(
     data: WorkoutLogSchema,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    assignment = db.query(Assignment).filter(
-        Assignment.id == data.assignment_id
-    ).first()
-
-    if not assignment:
-        raise HTTPException(
-            status_code=404,
-            detail="Asignación no encontrada"
-        )
-
-    if assignment.assigned_to_id != current_user.id:
-        raise HTTPException(
-            status_code=403,
-            detail="No autorizado"
-        )
+    """Guarda UNA serie (peso y repeticiones). Si no se indica set_number, es la serie 1."""
+    _my_assignment(db, data.assignment_id, data.exercise_id, current_user)
 
     existing = db.query(WorkoutLog).filter(
         WorkoutLog.assignment_id == data.assignment_id,
         WorkoutLog.exercise_id == data.exercise_id,
-        WorkoutLog.user_id == current_user.id
+        WorkoutLog.user_id == current_user.id,
+        WorkoutLog.set_number == data.set_number,
     ).first()
 
     if existing:
         existing.kg = data.kg
         existing.reps = data.reps
     else:
-        log = WorkoutLog(
+        db.add(WorkoutLog(
             assignment_id=data.assignment_id,
             user_id=current_user.id,
             exercise_id=data.exercise_id,
+            set_number=data.set_number,
             kg=data.kg,
-            reps=data.reps
-        )
-        db.add(log)
+            reps=data.reps,
+        ))
 
     db.commit()
 
     return {"ok": True}
+
+
+@router.post("/log/sets")
+def save_exercise_sets(
+    data: ExerciseSetsIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Guarda todas las series de un ejercicio de una vez (serie 1, 2, 3...).
+
+    Las series que ya existían se actualizan (conservan su fecha), las nuevas se crean y las
+    que sobran —porque la persona quitó alguna— se borran. Una lista vacía borra todas."""
+    _my_assignment(db, data.assignment_id, data.exercise_id, current_user)
+
+    rows = (
+        db.query(WorkoutLog)
+        .filter(
+            WorkoutLog.assignment_id == data.assignment_id,
+            WorkoutLog.exercise_id == data.exercise_id,
+            WorkoutLog.user_id == current_user.id,
+        )
+        .order_by(WorkoutLog.set_number, WorkoutLog.id)
+        .all()
+    )
+    by_number: dict[int, WorkoutLog] = {}
+    sobrantes: list[WorkoutLog] = []      # duplicados (p. ej. por un doble toque antiguo)
+    for row in rows:
+        n = row.set_number or 1
+        if n in by_number:
+            sobrantes.append(row)
+        else:
+            by_number[n] = row
+
+    for n, item in enumerate(data.sets, start=1):
+        row = by_number.pop(n, None)
+        if row:
+            row.kg, row.reps = item.kg, item.reps
+        else:
+            db.add(WorkoutLog(
+                assignment_id=data.assignment_id,
+                user_id=current_user.id,
+                exercise_id=data.exercise_id,
+                set_number=n,
+                kg=item.kg,
+                reps=item.reps,
+            ))
+
+    for row in [*by_number.values(), *sobrantes]:
+        db.delete(row)
+
+    db.commit()
+    return {"ok": True, "sets": len(data.sets)}
 
 
 # ─────────────────────────────────────────

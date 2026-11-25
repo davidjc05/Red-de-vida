@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator,
-  Modal, TextInput
+  Modal
 } from 'react-native';
 import { useColorScheme } from '../../hooks/use-color-scheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import CopyWeekModal from '../../components/CopyWeekModal';
-import { getMyAssignments, getClientAssignments, getRole, confirmWorkout, saveWorkoutLog } from '../../services/api';
+import SetLogger from '../../components/SetLogger';
+import { getMyAssignments, getClientAssignments, getRole, confirmWorkout, getMyWorkoutLogs, SetEntry } from '../../services/api';
 import { Colors } from '../../constants/colors';
 
 const FC  = 'BarlowCondensed-ExtraBold';
@@ -90,7 +91,8 @@ export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<Assignment | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<Assignment[]>([]);
-  const [logs, setLogs] = useState<any>({});
+  // series ya guardadas por entreno y ejercicio: { 'idEntreno_idEjercicio': [series] }
+  const [savedSets, setSavedSets] = useState<Record<string, SetEntry[]>>({});
   const [isAdmin, setIsAdmin] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -135,6 +137,18 @@ export default function CalendarScreen() {
           client: { full_name: a.assigned_to?.name ?? 'Yo' },
         }));
         setAssignments(adapted);
+        if (!admin) {
+          try {
+            const mine = await getMyWorkoutLogs();
+            const map: Record<string, SetEntry[]> = {};
+            for (const l of mine ?? []) {
+              const key = `${l.assignment_id}_${l.exercise_id}`;
+              (map[key] = map[key] ?? []).push({ set_number: l.set_number ?? 1, kg: l.kg ?? 0, reps: l.reps ?? 0 });
+            }
+            Object.values(map).forEach(list => list.sort((a, b) => a.set_number - b.set_number));
+            setSavedSets(map);
+          } catch { /* sin series guardadas: se muestran los campos vacíos */ }
+        }
         const confirmed = adapted.filter(
           (a: Assignment) => a.status === 'confirmed'
         );
@@ -516,119 +530,25 @@ export default function CalendarScreen() {
                 </View>
               </View>
 
-              {exercises.map((ex: any, exIndex: number) => (
-                <View
-                  key={`${workout.id}_${ex.id}_${exIndex}`}
-                  style={[
-                    s.logCard,
-                    {
-                      backgroundColor: C.bg,
-                      borderColor: C.border,
-                    },
-                  ]}
-                >
-                  <View style={{ marginBottom: 10 }}>
-                    <Text
-                      style={[
-                        s.logExerciseName,
-                        { color: C.text },
-                      ]}
-                    >
-                      {ex.name}
-                    </Text>
-                  </View>
-
-                  <View style={s.logInputsRow}>
-                    <View style={s.logInputWrap}>
-                      <Text style={[s.logInputLabel, { color: C.sub }]}>
-                        Kg
-                      </Text>
-
-                      <TextInput
-                        placeholder="0"
-                        placeholderTextColor={Colors.textMuted}
-                        keyboardType="numeric"
-                        value={
-                          logs[`${workout.id}_${ex.id}`]?.kg || ''
-                        }
-                        onChangeText={(t) =>
-                          setLogs((prev: any) => ({
-                            ...prev,
-                            [`${workout.id}_${ex.id}`]: {
-                              ...prev[`${workout.id}_${ex.id}`],
-                              kg: t,
-                            },
-                          }))
-                        }
-                        style={[
-                          s.logInput,
-                          {
-                            color: C.text,
-                            borderColor: C.border,
-                            backgroundColor: C.surface,
-                          },
-                        ]}
-                      />
-                    </View>
-
-                    <View style={s.logInputWrap}>
-                      <Text style={[s.logInputLabel, { color: C.sub }]}>
-                        Reps
-                      </Text>
-
-                      <TextInput
-                        placeholder="0"
-                        placeholderTextColor={Colors.textMuted}
-                        keyboardType="numeric"
-                        value={
-                          logs[`${workout.id}_${ex.id}`]?.reps || ''
-                        }
-                        onChangeText={(t) =>
-                          setLogs((prev: any) => ({
-                            ...prev,
-                            [`${workout.id}_${ex.id}`]: {
-                              ...prev[`${workout.id}_${ex.id}`],
-                              reps: t,
-                            },
-                          }))
-                        }
-                        style={[
-                          s.logInput,
-                          {
-                            color: C.text,
-                            borderColor: C.border,
-                            backgroundColor: C.surface,
-                          },
-                        ]}
-                      />
-                    </View>
-
-                    <TouchableOpacity
-                      style={s.saveLogBtn}
-                      onPress={async () => {
-                        try {
-                          await saveWorkoutLog({
-                            assignment_id: Number(workout.id),
-                            exercise_id: ex.id,
-                            kg: Number(
-                              logs[`${workout.id}_${ex.id}`]?.kg || 0
-                            ),
-                            reps: Number(
-                              logs[`${workout.id}_${ex.id}`]?.reps || 0
-                            ),
-                          });
-                        } catch (e) {
-                          console.log(e);
-                        }
-                      }}
-                    >
-                      <Text style={s.saveLogBtnText}>
-                        ✓
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
+              {exercises
+                // si un ejercicio sale dos veces en la rutina, se registra una sola vez
+                .filter((ex: any, i: number, all: any[]) => all.findIndex((x: any) => x.id === ex.id) === i)
+                .map((ex: any) => {
+                  const key = `${workout.id}_${ex.id}`;
+                  return (
+                    <SetLogger
+                      key={key}
+                      assignmentId={Number(workout.id)}
+                      exerciseId={ex.id}
+                      name={ex.name}
+                      plannedSets={ex.sets}
+                      plannedReps={ex.reps}
+                      initial={savedSets[key] ?? []}
+                      C={C}
+                      onSaved={sets => setSavedSets(prev => ({ ...prev, [key]: sets }))}
+                    />
+                  );
+                })}
 
               <TouchableOpacity
                 style={s.cancelWorkoutBtn}
@@ -758,7 +678,7 @@ export default function CalendarScreen() {
 
           {activeWorkout.length > 0 && (
             <View style={[s.integratedWorkoutSection, { backgroundColor: C.bg, borderTopColor: C.border }]}>
-              <ActiveWorkoutPanel />
+              {ActiveWorkoutPanel()}
             </View>
           )}
         </ScrollView>

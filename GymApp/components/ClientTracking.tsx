@@ -129,21 +129,35 @@ function Workout({ w, C, open, onToggle }: { w: HistoryWorkout; C: any; open: bo
           {w.exercises.length === 0 && (
             <Text style={[s.empty, { color: C.textSub }]}>Esta rutina no tiene ejercicios.</Text>
           )}
-          {w.exercises.map((e, idx) => (
-            <View key={`${e.exercise_id}-${idx}`} style={s.exRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.exName, { color: C.text }]}>{e.name}</Text>
-                {e.planned_sets != null && (
-                  <Text style={[s.exPlan, { color: C.textSub }]}>Plan: {e.planned_sets} × {e.planned_reps}</Text>
+          {w.exercises.map((e, idx) => {
+            const sets = e.sets ?? [];
+            return (
+              <View key={`${e.exercise_id}-${idx}`}>
+                <View style={s.exRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.exName, { color: C.text }]}>{e.name}</Text>
+                    {e.planned_sets != null && (
+                      <Text style={[s.exPlan, { color: C.textSub }]}>Plan: {e.planned_sets} × {e.planned_reps}</Text>
+                    )}
+                  </View>
+                  {!e.logged && <Text style={[s.exPlan, { color: C.textSub }]}>Sin registrar</Text>}
+                  {e.logged && sets.length <= 1 && (
+                    <Text style={[s.exLog, { color: C.text }]}>{e.kg} kg × {e.reps} reps</Text>
+                  )}
+                </View>
+                {e.logged && sets.length > 1 && (
+                  <View style={s.setsList}>
+                    {sets.map(st => (
+                      <View key={st.set_number} style={s.setRow}>
+                        <Text style={[s.exPlan, { color: C.textSub }]}>Serie {st.set_number}</Text>
+                        <Text style={[s.exLog, { color: C.text }]}>{st.kg} kg × {st.reps} reps</Text>
+                      </View>
+                    ))}
+                  </View>
                 )}
               </View>
-              {e.logged ? (
-                <Text style={[s.exLog, { color: C.text }]}>{e.kg} kg × {e.reps} reps</Text>
-              ) : (
-                <Text style={[s.exPlan, { color: C.textSub }]}>Sin registrar</Text>
-              )}
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
     </View>
@@ -173,4 +187,6 @@ const s = StyleSheet.create({
   exName: { fontSize: 14, fontWeight: '600' },
   exPlan: { fontSize: 12 },
   exLog: { fontSize: 14, fontWeight: '700' },
+  setsList: { paddingLeft: 12, paddingBottom: 6, gap: 2 },
+  setRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
 });

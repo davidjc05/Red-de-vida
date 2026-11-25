@@ -57,12 +57,29 @@ def rename_muscle_groups(engine):
         conn.execute(text("UPDATE exercises SET muscle_group = 'Abdomen' WHERE muscle_group = 'Core'"))
 
 
-def ensure_user_columns(engine):
+# Columnas añadidas a "workout_logs" (registro de pesos). Cada fila es UNA serie de un ejercicio.
+# Las filas antiguas (una por ejercicio) se quedan como serie 1.
+_WORKOUT_LOG_EXTRA_COLUMNS = {
+    "set_number": "INTEGER NOT NULL DEFAULT 1",
+}
+
+_EXTRA_COLUMNS = {
+    "users": _USER_EXTRA_COLUMNS,
+    "workout_logs": _WORKOUT_LOG_EXTRA_COLUMNS,
+}
+
+
+def ensure_extra_columns(engine):
+    """Añade las columnas nuevas que falten en tablas ya creadas. Idempotente."""
     insp = inspect(engine)
-    if not insp.has_table("users"):
-        return
-    existing = {c["name"] for c in insp.get_columns("users")}
-    with engine.begin() as conn:
-        for name, ddl in _USER_EXTRA_COLUMNS.items():
-            if name not in existing:
-                conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {ddl}"))
+    for table, columns in _EXTRA_COLUMNS.items():
+        if not insp.has_table(table):
+            continue
+        existing = {c["name"] for c in insp.get_columns(table)}
+        with engine.begin() as conn:
+            for name, ddl in columns.items():
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+
+
+ensure_user_columns = ensure_extra_columns  # nombre antiguo, por compatibilidad

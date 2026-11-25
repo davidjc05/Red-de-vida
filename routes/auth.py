@@ -287,7 +287,7 @@ def export_my_data(
     assignments = (
         db.query(Assignment).filter(Assignment.assigned_to_id == uid).order_by(Assignment.date).all()
     )
-    logs = db.query(WorkoutLog).filter(WorkoutLog.user_id == uid).order_by(WorkoutLog.created_at).all()
+    logs = db.query(WorkoutLog).filter(WorkoutLog.user_id == uid).order_by(WorkoutLog.created_at, WorkoutLog.id).all()
     activities = db.query(Activity).filter(Activity.user_id == uid).order_by(Activity.started_at).all()
     sends = db.query(FormSend).filter(FormSend.user_id == uid).order_by(FormSend.sent_at).all()
 
@@ -319,6 +319,7 @@ def export_my_data(
             {
                 "fecha": l.created_at,
                 "ejercicio": l.exercise.name if l.exercise else None,
+                "serie": l.set_number or 1,
                 "kg": l.kg,
                 "repeticiones": l.reps,
             }

@@ -1,5 +1,5 @@
 """Seguimiento de un cliente para la entrenadora: todos sus entrenos y, en cada uno,
-los ejercicios con los pesos y repeticiones que registró."""
+los ejercicios con el peso y las repeticiones de cada serie que registró."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, selectinload
 
@@ -32,25 +32,31 @@ def client_history(
         .all()
     )
 
-    # peso y repeticiones registrados (uno por ejercicio y entreno): {assignment_id: {exercise_id: log}}
+    # series registradas (una fila por serie): {assignment_id: {exercise_id: [series ordenadas]}}
     logs: dict = {}
     for log in (
         db.query(WorkoutLog)
         .options(selectinload(WorkoutLog.exercise))
         .filter(WorkoutLog.user_id == user_id)
-        .order_by(WorkoutLog.created_at, WorkoutLog.id)
+        .order_by(WorkoutLog.set_number, WorkoutLog.created_at, WorkoutLog.id)
     ):
-        logs.setdefault(log.assignment_id, {})[log.exercise_id] = log
+        logs.setdefault(log.assignment_id, {}).setdefault(log.exercise_id, []).append(log)
 
-    def _entry(exercise_id, name, sets, reps, log):
+    def _entry(exercise_id, name, sets, reps, logged):
+        logged = logged or []
+        # "kg" y "reps" = la serie más pesada (las versiones antiguas de la app solo leen esto)
+        best = max(logged, key=lambda l: (l.kg or 0, l.reps or 0), default=None)
         return {
             "exercise_id": exercise_id,
             "name": name,
             "planned_sets": sets,
             "planned_reps": reps,
-            "logged": log is not None,
-            "kg": log.kg if log else None,
-            "reps": log.reps if log else None,
+            "logged": bool(logged),
+            "kg": best.kg if best else None,
+            "reps": best.reps if best else None,
+            "sets": [
+                {"set_number": l.set_number or 1, "kg": l.kg, "reps": l.reps} for l in logged
+            ],
         }
 
     workouts = []
@@ -64,12 +70,13 @@ def client_history(
                         continue
                     first = be.exercise_id not in seen
                     seen.add(be.exercise_id)
-                    log = mine.pop(be.exercise_id, None) if first else None
-                    exercises.append(_entry(be.exercise_id, be.exercise.name, be.sets, be.reps, log))
+                    done = mine.pop(be.exercise_id, None) if first else None
+                    exercises.append(_entry(be.exercise_id, be.exercise.name, be.sets, be.reps, done))
         # ejercicios registrados que ya no están en la rutina (la rutina se editó después)
-        for exercise_id, log in mine.items():
-            name = log.exercise.name if log.exercise else f"Ejercicio {exercise_id}"
-            exercises.append(_entry(exercise_id, name, None, None, log))
+        for exercise_id, done in mine.items():
+            ex = done[0].exercise
+            name = ex.name if ex else f"Ejercicio {exercise_id}"
+            exercises.append(_entry(exercise_id, name, None, None, done))
 
         workouts.append({
             "assignment_id": a.id,

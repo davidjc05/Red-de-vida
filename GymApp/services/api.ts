@@ -274,14 +274,16 @@ export async function getUsers() {
 }
 
 // ── SEGUIMIENTO (entrenadora) ────────────────────────────────
+export type SetEntry = { set_number: number; kg: number; reps: number };
 export type HistoryExercise = {
   exercise_id: number;
   name: string;
   planned_sets: number | null;
   planned_reps: number | null;
   logged: boolean;
-  kg: number | null;
+  kg: number | null;     // serie más pesada (compatibilidad)
   reps: number | null;
+  sets: SetEntry[];      // todas las series registradas, en orden
 };
 export type HistoryWorkout = {
   assignment_id: number;
@@ -608,6 +610,21 @@ export async function saveWorkoutLog(data: {
 
   return json;
 }
+// ✅ GUARDAR TODAS LAS SERIES DE UN EJERCICIO (reemplaza las anteriores)
+export async function saveExerciseSets(data: {
+  assignment_id: number;
+  exercise_id: number;
+  sets: { kg: number; reps: number }[];
+}) {
+  const res = await authFetch('/assignments/log/sets', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(detailToText(json.detail, 'No se pudieron guardar las series'));
+  return json;
+}
+
 // ── WORKOUT LOGS ──────────────────────────────────────────────
 export async function getMyWorkoutLogs() {
   const res = await authFetch('/assignments/logs/mine');
