@@ -3,14 +3,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from sqlalchemy import text
-from database import engine, Base, ensure_extra_columns, rename_muscle_groups
+from database import engine, run_migrations
 import reminders
 from routes import assignments, users, exercises, routines, auth, activities, forms, tracking
 from fastapi.middleware.cors import CORSMiddleware
-# Crea todas las tablas en la base de datos al arrancar
-Base.metadata.create_all(bind=engine)
-ensure_extra_columns(engine)  # añade columnas nuevas (users, workout_logs) si faltan
-rename_muscle_groups(engine)  # Core -> Abdomen en ejercicios existentes
+# Lleva la base de datos a la última versión (crea las tablas si no existen, aplica migraciones)
+run_migrations()
 
 # Orígenes permitidos (CORS). Se pueden cambiar con CORS_ORIGINS="https://a.com,https://b.com"
 _DEFAULT_ORIGINS = [

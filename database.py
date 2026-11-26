@@ -1,4 +1,6 @@
-from sqlalchemy import create_engine, inspect, text
+from pathlib import Path
+
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 from dotenv import load_dotenv
@@ -33,53 +35,31 @@ def get_db():
         db.close()
 
 
-# Columnas añadidas a "users" después de crear la tabla. create_all() no modifica
-# tablas existentes, así que las añadimos aquí si faltan (válido para Postgres y SQLite).
-_USER_EXTRA_COLUMNS = {
-    "phone": "VARCHAR",
-    "country": "VARCHAR",
-    "city": "VARCHAR",
-    "birth_date": "DATE",
-    "status": "VARCHAR NOT NULL DEFAULT 'active'",
-    "email_verified": "BOOLEAN NOT NULL DEFAULT TRUE",
-    "consent_at": "TIMESTAMP",
-    "consent_version": "VARCHAR",
-    "email_reminders": "BOOLEAN NOT NULL DEFAULT TRUE",
-}
+# ─────────────────────────────────────────
+# MIGRACIONES (Alembic)
+# ─────────────────────────────────────────
+# Los cambios de la base de datos (tablas o columnas nuevas) ya NO se hacen aquí:
+# se escriben como migraciones en la carpeta migrations/versions/ y se aplican solas al arrancar.
+# Pasos para un cambio nuevo:
+#   1. Cambia models.py (por ejemplo, añade una columna).
+#   2. alembic revision --autogenerate -m "descripción corta"   (crea el archivo de migración)
+#   3. Revisa ese archivo, haz commit y push. Al arrancar, el servidor lo aplica.
+
+_BASE_DIR = Path(__file__).resolve().parent
 
 
-def rename_muscle_groups(engine):
-    """Renombra grupos antiguos en los ejercicios ya guardados (Core -> Abdomen). Idempotente."""
-    insp = inspect(engine)
-    if not insp.has_table("exercises"):
-        return
-    with engine.begin() as conn:
-        conn.execute(text("UPDATE exercises SET muscle_group = 'Abdomen' WHERE muscle_group = 'Core'"))
+def run_migrations(target_engine=None, revision="head"):
+    """Lleva la base de datos a la última versión. Si ya está al día, no hace nada.
 
+    Todo ocurre en una sola transacción: si una migración falla, no queda a medias.
+    En Postgres se usa un cerrojo para que dos instancias arrancando a la vez no choquen."""
+    from alembic import command
+    from alembic.config import Config
 
-# Columnas añadidas a "workout_logs" (registro de pesos). Cada fila es UNA serie de un ejercicio.
-# Las filas antiguas (una por ejercicio) se quedan como serie 1.
-_WORKOUT_LOG_EXTRA_COLUMNS = {
-    "set_number": "INTEGER NOT NULL DEFAULT 1",
-}
-
-_EXTRA_COLUMNS = {
-    "users": _USER_EXTRA_COLUMNS,
-    "workout_logs": _WORKOUT_LOG_EXTRA_COLUMNS,
-}
-
-
-def ensure_extra_columns(engine):
-    """Añade las columnas nuevas que falten en tablas ya creadas. Idempotente."""
-    insp = inspect(engine)
-    for table, columns in _EXTRA_COLUMNS.items():
-        if not insp.has_table(table):
-            continue
-        existing = {c["name"] for c in insp.get_columns(table)}
-        with engine.begin() as conn:
-            for name, ddl in columns.items():
-                if name not in existing:
-                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
-
-
-ensure_user_columns = ensure_extra_columns  # nombre antiguo, por compatibilidad
+    cfg = Config(str(_BASE_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(_BASE_DIR / "migrations"))
+    with (target_engine or engine).begin() as conn:
+        if conn.dialect.name == "postgresql":
+            conn.execute(text("SELECT pg_advisory_xact_lock(727274)"))
+        cfg.attributes["connection"] = conn
+        command.upgrade(cfg, revision)

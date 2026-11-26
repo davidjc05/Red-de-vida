@@ -1,10 +1,7 @@
 """Registro por series: peso y repeticiones de cada serie de un ejercicio."""
-import os
-import tempfile
 
-from sqlalchemy import create_engine, text
 
-from database import SessionLocal, ensure_extra_columns
+from database import SessionLocal
 from models import WorkoutLog
 from tests.test_seguridad import _admin, _headers, _register
 
@@ -139,17 +136,3 @@ def test_exportar_datos_incluye_la_serie(client):
     client.post("/assignments/log/sets", json={"assignment_id": a, "exercise_id": e1, "sets": [{"kg": 20, "reps": 15}, {"kg": 25, "reps": 12}]}, headers=cli)
     regs = client.get("/auth/me/export", headers=cli).json()["registros_de_entrenamiento"]
     assert [(r["serie"], r["kg"], r["repeticiones"]) for r in regs] == [(1, 20, 15), (2, 25, 12)]
-
-
-def test_base_de_datos_antigua_se_actualiza_sola():
-    """Una tabla workout_logs sin set_number (como la de Render hoy) recibe la columna y
-    sus filas viejas pasan a ser la serie 1. Repetirlo no rompe nada."""
-    engine = create_engine(f"sqlite:///{os.path.join(tempfile.mkdtemp(), 'vieja.db')}")
-    with engine.begin() as conn:
-        conn.execute(text("CREATE TABLE workout_logs (id INTEGER PRIMARY KEY, assignment_id INTEGER, user_id INTEGER,"
-                          " exercise_id INTEGER, kg FLOAT, reps INTEGER, created_at DATETIME)"))
-        conn.execute(text("INSERT INTO workout_logs (assignment_id, user_id, exercise_id, kg, reps) VALUES (1, 2, 3, 60, 8)"))
-    ensure_extra_columns(engine)
-    ensure_extra_columns(engine)   # segunda vez: idempotente
-    with engine.connect() as conn:
-        assert conn.execute(text("SELECT set_number, kg, reps FROM workout_logs")).fetchall() == [(1, 60.0, 8)]

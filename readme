@@ -2,3 +2,11 @@ python -m uvicorn main:app --reload
 ngrok http 8081   
 npx expo start -c 
 npx expo start -c --tunnel
+
+# --- Cambios en la base de datos (Alembic) ---
+# Se aplican SOLOS al arrancar el servidor (no hace falta ningun comando para desplegar).
+# Para un cambio nuevo: 1) edita models.py  2) ejecuta esto  3) revisa el archivo creado en migrations/versions/ y haz commit
+alembic revision --autogenerate -m "descripcion corta"
+# Ver en que version esta la base de datos
+alembic current
+# NO uses "alembic downgrade": puede borrar datos.
