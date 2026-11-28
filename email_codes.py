@@ -3,11 +3,12 @@ import hashlib
 import hmac
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
 from models import EmailCode
+from timeutil import utcnow
 
 CODE_TTL_MIN = 15
 RESEND_COOLDOWN_S = 60
@@ -21,7 +22,7 @@ def _hash(email: str, purpose: str, code: str) -> str:
 
 def issue_code(db: Session, email: str, purpose: str) -> str | None:
     """Crea un código nuevo. Devuelve None si se pidió otro hace menos de un minuto."""
-    now = datetime.utcnow()
+    now = utcnow()
     last = (
         db.query(EmailCode)
         .filter(EmailCode.email == email, EmailCode.purpose == purpose)
@@ -47,7 +48,7 @@ def check_code(db: Session, email: str, purpose: str, code: str) -> bool:
         .filter(EmailCode.email == email, EmailCode.purpose == purpose)
         .first()
     )
-    if not row or row.expires_at < datetime.utcnow() or row.attempts >= MAX_ATTEMPTS:
+    if not row or row.expires_at < utcnow() or row.attempts >= MAX_ATTEMPTS:
         return False
 
     if not hmac.compare_digest(row.code_hash, _hash(email, purpose, code.strip())):

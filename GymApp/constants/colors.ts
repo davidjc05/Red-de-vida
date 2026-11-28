@@ -10,7 +10,7 @@ export const Colors = {
 
   textPrimary: '#1A1A1A',
   textSecondary: '#666666',
-  textMuted: '#999999',
+  textMuted: '#767676',   // 4,5:1 sobre blanco (mínimo de accesibilidad WCAG AA),
 
   border: '#E8E8E8',
   inputBg: '#FAFAFA',

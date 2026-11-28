@@ -11,6 +11,7 @@ import CopyWeekModal from '../../components/CopyWeekModal';
 import SetLogger from '../../components/SetLogger';
 import { getMyAssignments, getClientAssignments, getRole, confirmWorkout, getMyWorkoutLogs, SetEntry } from '../../services/api';
 import { Colors } from '../../constants/colors';
+import { notify } from '../../services/ui';
 
 const FC  = 'BarlowCondensed-ExtraBold';
 const FB  = 'Barlow-Regular';
@@ -427,7 +428,7 @@ export default function CalendarScreen() {
                           ]);
 
                           setSelectedEvent(null);
-                        } catch (e) { console.log(e); }
+                        } catch (e: any) { notify('Error', e?.message || 'No se pudo guardar. Inténtalo de nuevo.'); }
                       }}
                     >
                       <Text style={s.btnConfirmText}>Confirmar entreno</Text>
@@ -439,7 +440,7 @@ export default function CalendarScreen() {
                           await confirmWorkout(Number(selectedEvent.id), 'declined');
                           setAssignments(prev => prev.map(a => a.id === selectedEvent.id ? { ...a, status: 'declined' } : a));
                           setSelectedEvent({ ...selectedEvent, status: 'declined' });
-                        } catch (e) { console.log(e); }
+                        } catch (e: any) { notify('Error', e?.message || 'No se pudo guardar. Inténtalo de nuevo.'); }
                       }}
                     >
                       <Text style={s.btnDeclineText}>No puedo entrenar</Text>
@@ -581,8 +582,8 @@ export default function CalendarScreen() {
                     setActiveWorkout((prev) =>
                       prev.filter((w) => w.id !== workout.id)
                     );
-                  } catch (e) {
-                    console.log(e);
+                  } catch (e: any) {
+                    notify('Error', e?.message || 'No se pudo cancelar el entreno. Inténtalo de nuevo.');
                   }
                 }}
               >

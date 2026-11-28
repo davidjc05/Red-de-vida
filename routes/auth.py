@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime, timezone
 
@@ -30,6 +31,7 @@ from email_codes import issue_code, check_code
 from email_service import email_enabled, send_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+log = logging.getLogger("auth")
 
 
 def _send_code(db: Session, email: str, purpose: str) -> None:
@@ -45,8 +47,8 @@ def _send_code(db: Session, email: str, purpose: str) -> None:
         body = f"Tu código para cambiar la contraseña es: {code}\n\nCaduca en 15 minutos. Si no lo has pedido tú, ignora este mensaje."
     try:
         send_email(email, subject, body)
-    except Exception as e:  # no se filtra el motivo al cliente
-        print(f"[email] fallo enviando a {email}: {e}")
+    except Exception as e:  # no se filtra el motivo al cliente; en los logs no va el email
+        log.warning("No se pudo enviar el código de %s: %s", purpose, e)
 
 
 def _now() -> datetime:

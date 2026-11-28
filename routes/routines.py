@@ -9,6 +9,7 @@ from models import Assignment, Routine, User, RoutineExercise, Block, BlockExerc
 from schemas import RoutineCreate, RoutineUpdate
 from permissions import require_admin, get_routine_or_403
 from auth.auth import get_current_user
+from timeutil import today_es
 
 router = APIRouter(prefix="/routines", tags=["Rutinas"])
 
@@ -195,7 +196,7 @@ def duplicate_routine(
         name=f"{routine.name} (copia)",
         description=routine.description,
         user_id=current_user.id,
-        date=date.today(),
+        date=today_es(),
     )
     db.add(copy)
     db.flush()

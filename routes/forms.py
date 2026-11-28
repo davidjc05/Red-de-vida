@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+import logging
+from datetime import timedelta
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,9 +10,11 @@ from auth.auth import get_current_user
 from database import get_db
 from email_service import email_enabled, send_email
 from models import Form, FormSend, User
+from timeutil import utcnow
 from permissions import require_admin
 
 router = APIRouter(prefix="/forms", tags=["forms"])
+log = logging.getLogger("forms")
 
 ALLOWED_HOSTS = {"docs.google.com", "forms.gle", "forms.google.com"}
 
@@ -118,7 +121,7 @@ def send_form(form_id: int, data: SendIn, db: Session = Depends(get_db), admin: 
     recent = (
         db.query(FormSend)
         .filter(FormSend.form_id == f.id, FormSend.user_id == client.id,
-                FormSend.sent_at > datetime.utcnow() - timedelta(seconds=30))
+                FormSend.sent_at > utcnow() - timedelta(seconds=30))
         .first()
     )
     if recent:
@@ -136,7 +139,8 @@ def send_form(form_id: int, data: SendIn, db: Session = Depends(get_db), admin: 
             )
             email_ok = True
         except Exception as e:
-            print(f"[email] fallo enviando formulario a {client.email}: {e}")
+            # En los logs va el id del cliente, no su email (dato personal)
+            log.warning("No se pudo enviar el formulario %s al usuario %s: %s", f.id, client.id, e)
 
     db.add(FormSend(form_id=f.id, user_id=client.id, email_sent=email_ok))
     db.commit()

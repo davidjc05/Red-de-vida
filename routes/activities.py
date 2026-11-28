@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from auth.auth import get_current_user
 from database import get_db
 from models import Activity, User
+from timeutil import utcnow
 from permissions import require_admin
 
 router = APIRouter(prefix="/activities", tags=["activities"])
@@ -90,7 +91,7 @@ def clients_activities(
         db.query(Activity)
         .filter(
             Activity.user_id.in_([c.id for c in clients]),
-            Activity.started_at >= datetime.utcnow() - timedelta(days=days),
+            Activity.started_at >= utcnow() - timedelta(days=days),
         )
         .order_by(Activity.started_at.desc())
         .all()

@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date, DateTime, Boolean, Index, UniqueConstraint, func, true
 from sqlalchemy.orm import relationship
 from database import Base
-from datetime import datetime
+from timeutil import utcnow
 
 
 # ─────────────────────────────────────────
@@ -61,8 +61,10 @@ class Exercise(Base):
     image_url    = Column(String, nullable=True)
     video_url    = Column(String, nullable=True)
 
-    routine_exercises = relationship("RoutineExercise", back_populates="exercise")
-    block_exercises   = relationship("BlockExercise", back_populates="exercise")
+    # Al borrar un ejercicio se quita también de las rutinas que lo usan (antes quedaban filas
+    # huérfanas sin ejercicio)
+    routine_exercises = relationship("RoutineExercise", back_populates="exercise", cascade="all, delete-orphan")
+    block_exercises   = relationship("BlockExercise", back_populates="exercise", cascade="all, delete-orphan")
 
 
 # ─────────────────────────────────────────
@@ -199,7 +201,7 @@ class WorkoutLog(Base):
     reps          = Column(Integer, nullable=True)
     # Cada fila es UNA serie. Las filas antiguas (una por ejercicio) cuentan como serie 1.
     set_number    = Column(Integer, nullable=False, default=1, server_default="1")
-    created_at    = Column(DateTime, default=datetime.utcnow)
+    created_at    = Column(DateTime, default=utcnow)
 
     # ✅ Relación para acceder a log.exercise.name en los endpoints
     exercise = relationship("Exercise")
@@ -235,7 +237,7 @@ class EmailCode(Base):
     code_hash  = Column(String, nullable=False)
     expires_at = Column(DateTime, nullable=False)
     attempts   = Column(Integer, nullable=False, default=0)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
 
 
 # ─────────────────────────────────────────
@@ -248,7 +250,7 @@ class Form(Base):
     id         = Column(Integer, primary_key=True, index=True)
     title      = Column(String, nullable=False)
     url        = Column(String, nullable=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
 
 
 class FormSend(Base):
@@ -257,7 +259,7 @@ class FormSend(Base):
     id         = Column(Integer, primary_key=True, index=True)
     form_id    = Column(Integer, ForeignKey("forms.id", ondelete="CASCADE"), index=True, nullable=False)
     user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
-    sent_at    = Column(DateTime, nullable=False, default=datetime.utcnow)
+    sent_at    = Column(DateTime, nullable=False, default=utcnow)
     email_sent = Column(Boolean, nullable=False, default=False)
 
     form = relationship("Form")
@@ -275,4 +277,4 @@ class NotificationLog(Base):
     kind       = Column(String, nullable=False)
     user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     day        = Column(Date, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)

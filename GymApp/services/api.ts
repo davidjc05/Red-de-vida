@@ -328,7 +328,7 @@ async function readError(res: Response, fallback: string) {
   const text = await res.text();
   try {
     const data = JSON.parse(text);
-    return typeof data.detail === 'string' ? data.detail : fallback;
+    return detailToText(data.detail, fallback);  // también los errores de validación (422)
   } catch {
     return text || fallback;
   }

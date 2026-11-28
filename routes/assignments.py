@@ -17,6 +17,7 @@ from models import (
 )
 
 from schemas import AssignmentCreate, AssignmentOut
+from timeutil import today_es, utcnow
 from auth.auth import get_current_user
 from permissions import get_routine_or_403, require_admin
 
@@ -270,8 +271,9 @@ def my_assignments(
 
     # Los clientes solo ven las rutinas del mes en curso. Al cambiar de mes dejan de
     # aparecer, pero NO se borran (se conservan los registros y el historial).
+    # El mes se cuenta en hora de España (el servidor va en UTC).
     if current_user.role != "admin":
-        today = date.today()
+        today = today_es()
         month_start = today.replace(day=1)
         next_month = (month_start + timedelta(days=32)).replace(day=1)
         query = query.filter(Assignment.date >= month_start, Assignment.date < next_month)
@@ -548,10 +550,10 @@ def confirm_assignment(
     assignment.status = data.status
 
     if data.status == "confirmed":
-        assignment.confirmed_at = datetime.utcnow()
+        assignment.confirmed_at = utcnow()
         assignment.declined_at = None
     elif data.status == "declined":
-        assignment.declined_at = datetime.utcnow()
+        assignment.declined_at = utcnow()
         assignment.confirmed_at = None
 
     db.commit()

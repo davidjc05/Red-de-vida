@@ -78,12 +78,29 @@ class Token(BaseModel):
 
 # ─── EXERCISES ────────────────────────────
 
+def _web_url(v: Optional[str]) -> Optional[str]:
+    """Enlace de imagen o vídeo: vacío = sin enlace; si hay, tiene que ser http(s)."""
+    if v is None:
+        return None
+    v = v.strip()
+    if not v:
+        return None
+    if not v.lower().startswith(("https://", "http://")):
+        raise ValueError("El enlace debe empezar por https://")
+    return v
+
+
 class ExerciseCreate(BaseModel):
-    name: str
-    muscle_group: str
-    description: Optional[str] = None
-    image_url: Optional[str] = None
-    video_url: Optional[str] = None
+    name: str = Field(min_length=1, max_length=100)
+    muscle_group: str = Field(min_length=1, max_length=50)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    image_url: Optional[str] = Field(default=None, max_length=500)
+    video_url: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("image_url", "video_url")
+    @classmethod
+    def _urls(cls, v):
+        return _web_url(v)
 
 
 class ExerciseOut(BaseModel):
@@ -99,11 +116,16 @@ class ExerciseOut(BaseModel):
 
 
 class ExerciseUpdate(BaseModel):
-    name: Optional[str] = None
-    muscle_group: Optional[str] = None
-    description: Optional[str] = None
-    image_url: Optional[str] = None
-    video_url: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    muscle_group: Optional[str] = Field(default=None, min_length=1, max_length=50)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    image_url: Optional[str] = Field(default=None, max_length=500)
+    video_url: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("image_url", "video_url")
+    @classmethod
+    def _urls(cls, v):
+        return _web_url(v)
 
 
 # ─── RELACIÓN ─────────────────────────────

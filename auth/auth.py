@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
-from passlib.context import CryptContext
+import bcrypt
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -22,16 +22,20 @@ if not SECRET_KEY or len(SECRET_KEY) < 32:
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 # ─── PASSWORD ───────────────────────────────────────────
 
-def hash_password(password: str):
-    return pwd_context.hash(password)
+# bcrypt directamente (passlib ya no se mantiene). Los hashes antiguos de passlib son
+# bcrypt estándar ($2b$...), así que las contraseñas de siempre siguen funcionando.
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
-def verify_password(plain, hashed):
-    return pwd_context.verify(plain, hashed)
+def verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except ValueError:  # hash vacío o con formato raro
+        return False
 
 # ─── TOKEN ──────────────────────────────────────────────
 
