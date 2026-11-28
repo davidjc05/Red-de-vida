@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from schemas import ExerciseUpdate
-from auth.auth import get_current_admin
+from auth.auth import get_current_admin, get_current_user
 
 
 import sys
@@ -29,8 +29,13 @@ def create_exercise(
     return db_exercise
 
 
+# El catálogo solo lo ve quien ha iniciado sesión (clientes activos y entrenadora)
 @router.get("", response_model=List[ExerciseOut])
-def list_exercises(muscle_group: str = None, db: Session = Depends(get_db)):
+def list_exercises(
+    muscle_group: str = None,
+    db: Session = Depends(get_db),
+    _user=Depends(get_current_user),
+):
     """Lista todos los ejercicios. Filtra por grupo muscular con ?muscle_group=pecho"""
     query = db.query(Exercise)
     if muscle_group:
@@ -39,7 +44,7 @@ def list_exercises(muscle_group: str = None, db: Session = Depends(get_db)):
 
 
 @router.get("/{exercise_id}", response_model=ExerciseOut)
-def get_exercise(exercise_id: int, db: Session = Depends(get_db)):
+def get_exercise(exercise_id: int, db: Session = Depends(get_db), _user=Depends(get_current_user)):
     """Obtiene un ejercicio por su ID."""
     exercise = db.query(Exercise).filter(Exercise.id == exercise_id).first()
     if not exercise:
