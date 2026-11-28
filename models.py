@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date, DateTime, Boolean, UniqueConstraint, true
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date, DateTime, Boolean, Index, UniqueConstraint, func, true
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -35,9 +35,15 @@ class User(Base):
     # Recordatorios por correo (rutina de hoy / clientes inactivos). Se desactivan desde el perfil.
     email_reminders  = Column(Boolean, default=True, nullable=False, server_default=true())
 
+    # Sube en 1 al cambiar o restablecer la contraseña: los tokens anteriores dejan de valer
+    token_version    = Column(Integer, default=0, nullable=False, server_default="0")
+
     routines             = relationship("Routine", back_populates="user")
     assignments_received = relationship("Assignment", foreign_keys="Assignment.assigned_to_id", back_populates="assigned_to")
     assignments_sent     = relationship("Assignment", foreign_keys="Assignment.assigned_by_id", back_populates="assigned_by")
+
+    # Un email solo puede existir una vez, sin importar mayúsculas (Ana@x.com = ana@x.com)
+    __table_args__ = (Index("uq_users_email_lower", func.lower(email), unique=True),)
 
 
 # ─────────────────────────────────────────

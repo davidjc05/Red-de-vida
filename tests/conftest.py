@@ -7,6 +7,7 @@ import tempfile
 _db = os.path.join(tempfile.mkdtemp(), "test.db")
 os.environ["DATABASE_URL"] = f"sqlite:///{_db}"
 os.environ["SECRET_KEY"] = "t" * 48
+os.environ["ADMIN_EMAIL"] = "admin@test.com"  # la cuenta de entrenadora en los tests
 os.environ.pop("BREVO_API_KEY", None)
 os.environ.pop("MAIL_FROM", None)
 os.environ.pop("CORS_ORIGINS", None)

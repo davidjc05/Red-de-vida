@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from account import erase_client
-from auth.auth import hash_password
+from auth.auth import find_user_by_email, hash_password
 from database import get_db
 from models import User
 from permissions import require_admin
@@ -23,7 +23,7 @@ def create_user(
     db: Session = Depends(get_db),
     _admin: User = Depends(require_admin),
 ):
-    if db.query(User).filter(User.email == user.email).first():
+    if find_user_by_email(db, user.email):
         raise HTTPException(status_code=400, detail="El email ya está registrado")
 
     db_user = User(

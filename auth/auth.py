@@ -5,6 +5,7 @@ import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -33,6 +34,26 @@ def verify_password(plain, hashed):
     return pwd_context.verify(plain, hashed)
 
 # ─── TOKEN ──────────────────────────────────────────────
+
+def normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def find_user_by_email(db: Session, email: str):
+    """Busca el usuario sin distinguir mayúsculas (también encuentra cuentas antiguas
+    guardadas con mayúsculas)."""
+    return (
+        db.query(User)
+        .filter(func.lower(User.email) == normalize_email(email))
+        .order_by(User.id)
+        .first()
+    )
+
+
+def token_for(user: User) -> str:
+    """Token de sesión. Lleva la versión de la contraseña: al cambiarla, los anteriores caducan."""
+    return create_access_token({"sub": str(user.id), "tv": user.token_version or 0})
+
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -71,6 +92,10 @@ def get_current_user(
     user = db.query(User).filter(User.id == int(user_id)).first()
 
     if user is None:
+        raise credentials_exception
+
+    # Token de antes de un cambio de contraseña: ya no vale
+    if payload.get("tv", 0) != (user.token_version or 0):
         raise credentials_exception
 
     # Un cliente pendiente o con la suscripción cancelada pierde el acceso al instante,

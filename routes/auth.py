@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -17,8 +18,10 @@ from schemas import UserCreate, UserOut, UserUpdate, Token
 from auth.auth import (
     hash_password,
     verify_password,
-    create_access_token,
+    find_user_by_email,
     get_current_user,
+    normalize_email,
+    token_for,
 )
 
 import ratelimit
@@ -86,15 +89,19 @@ def register(request: Request, user_in: UserCreate, db: Session = Depends(get_db
     if not user_in.accept_terms:
         raise HTTPException(422, "Debes aceptar la política de privacidad para crear tu cuenta")
 
-    existing = db.query(User).filter(User.email == user_in.email).first()
+    existing = find_user_by_email(db, user_in.email)
     if existing and existing.email_verified:
         raise HTTPException(400, "Email ya registrado")
 
-    is_first_user = db.query(User).count() == 0
+    # La cuenta de entrenador es la del email de ADMIN_EMAIL (variable de entorno), no la primera
+    # que se registre: así nadie puede quedarse con ella si la base de datos está vacía.
+    # Las demás entrenadoras se ascienden desde la app (/auth/users/{id}/promote).
+    admin_email = normalize_email(os.getenv("ADMIN_EMAIL", ""))
+    is_admin = bool(admin_email) and user_in.email == admin_email
 
-    role = "admin" if is_first_user else "client"
-    # El primer usuario (entrenador) entra directo; los clientes esperan aprobación.
-    account_status = "active" if is_first_user else "pending"
+    role = "admin" if is_admin else "client"
+    # El entrenador entra directo; los clientes esperan aprobación.
+    account_status = "active" if is_admin else "pending"
 
     needs_verification = email_enabled()
 
@@ -110,6 +117,8 @@ def register(request: Request, user_in: UserCreate, db: Session = Depends(get_db
         user.birth_date = user_in.birth_date
         user.consent_at = _now()
         user.consent_version = PRIVACY_VERSION
+        if is_admin:
+            user.role, user.status = "admin", "active"
     else:
         user = User(
             name=user_in.name.strip(),
@@ -142,18 +151,26 @@ def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
-    # Límite por IP (general) y por email (solo cuenta los fallos): frena la adivinación de contraseñas
-    ratelimit.hit(f"login:ip:{ratelimit.client_ip(request)}", 30, 600)
-    email_key = f"login:fail:{form_data.username.strip().lower()}"
-    ratelimit.blocked(email_key, 5, 900)
+    # Frena la adivinación de contraseñas sin que un tercero pueda dejar fuera al dueño de la cuenta:
+    #  * por IP: 30 intentos cada 10 min
+    #  * por email + IP: 5 fallos cada 15 min (bloquea al atacante, no al dueño que entra desde otra IP)
+    #  * por email desde cualquier IP: 50 fallos cada 15 min (frena un ataque repartido en muchas IPs)
+    ip = ratelimit.client_ip(request)
+    email = normalize_email(form_data.username)
+    ratelimit.hit(f"login:ip:{ip}", 30, 600)
+    pair_key = f"login:fail:{email}:{ip}"
+    all_key = f"login:failall:{email}"
+    ratelimit.blocked(pair_key, 5, 900)
+    ratelimit.blocked(all_key, 50, 900)
 
-    user = db.query(User).filter(User.email == form_data.username).first()
+    user = find_user_by_email(db, email)
 
     if not user or not verify_password(form_data.password, user.hashed_password):
-        ratelimit.fail(email_key, 900)
+        ratelimit.fail(pair_key, 900)
+        ratelimit.fail(all_key, 900)
         raise HTTPException(401, "Credenciales incorrectas")
 
-    ratelimit.reset(email_key)
+    ratelimit.reset(pair_key)
 
     if not user.email_verified:
         raise HTTPException(403, "EMAIL_NO_VERIFICADO")
@@ -164,8 +181,7 @@ def login(
         if user.status == "suspended":
             raise HTTPException(403, "Tu suscripción está cancelada. Contacta con tu entrenador.")
 
-    token = create_access_token({"sub": str(user.id)})
-    return {"access_token": token, "token_type": "bearer"}
+    return {"access_token": token_for(user), "token_type": "bearer"}
 
 
 @router.get("/me", response_model=UserOut)
@@ -216,8 +232,8 @@ def promote(user_id: int, db: Session = Depends(get_db), _: User = Depends(requi
 def verify_email(request: Request, data: VerifyIn, db: Session = Depends(get_db)):
     ratelimit.hit(f"verify:ip:{ratelimit.client_ip(request)}", 30, 900)
     ratelimit.hit(f"verify:email:{data.email.lower()}", 10, 900)
-    user = db.query(User).filter(User.email == data.email).first()
-    if not user or not check_code(db, data.email, "verify", data.code):
+    user = find_user_by_email(db, data.email)
+    if not user or not check_code(db, user.email, "verify", data.code):
         raise HTTPException(400, "Código incorrecto o caducado")
     user.email_verified = True
     db.commit()
@@ -228,9 +244,9 @@ def verify_email(request: Request, data: VerifyIn, db: Session = Depends(get_db)
 def resend_code(request: Request, data: EmailIn, db: Session = Depends(get_db)):
     ratelimit.hit(f"mail:ip:{ratelimit.client_ip(request)}", 10, 900)
     ratelimit.hit(f"mail:email:{data.email.lower()}", 5, 900)
-    user = db.query(User).filter(User.email == data.email).first()
+    user = find_user_by_email(db, data.email)
     if user and not user.email_verified and email_enabled():
-        _send_code(db, data.email, "verify")
+        _send_code(db, user.email, "verify")
     return {"ok": True}  # misma respuesta exista o no el email
 
 
@@ -240,9 +256,9 @@ def forgot_password(request: Request, data: EmailIn, db: Session = Depends(get_d
     ratelimit.hit(f"mail:email:{data.email.lower()}", 5, 900)
     if not email_enabled():
         raise HTTPException(503, "El envío de correos no está configurado en el servidor")
-    user = db.query(User).filter(User.email == data.email).first()
+    user = find_user_by_email(db, data.email)
     if user:
-        _send_code(db, data.email, "reset")
+        _send_code(db, user.email, "reset")
     return {"ok": True}  # misma respuesta exista o no el email
 
 
@@ -250,11 +266,12 @@ def forgot_password(request: Request, data: EmailIn, db: Session = Depends(get_d
 def reset_password(request: Request, data: ResetIn, db: Session = Depends(get_db)):
     ratelimit.hit(f"verify:ip:{ratelimit.client_ip(request)}", 30, 900)
     ratelimit.hit(f"verify:email:{data.email.lower()}", 10, 900)
-    user = db.query(User).filter(User.email == data.email).first()
-    if not user or not check_code(db, data.email, "reset", data.code):
+    user = find_user_by_email(db, data.email)
+    if not user or not check_code(db, user.email, "reset", data.code):
         raise HTTPException(400, "Código incorrecto o caducado")
     user.hashed_password = hash_password(data.new_password)
     user.email_verified = True  # recibió el código en su correo
+    user.token_version = (user.token_version or 0) + 1  # cierra las sesiones abiertas
     db.commit()
     return {"ok": True}
 
@@ -269,8 +286,10 @@ def change_password(
     if not verify_password(data.current_password, current_user.hashed_password):
         raise HTTPException(400, "La contraseña actual no es correcta")
     current_user.hashed_password = hash_password(data.new_password)
+    # Cierra las sesiones de los demás dispositivos; este recibe un token nuevo y sigue dentro
+    current_user.token_version = (current_user.token_version or 0) + 1
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "access_token": token_for(current_user)}
 
 
 # ─────────────────────────────────────────

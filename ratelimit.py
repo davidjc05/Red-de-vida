@@ -3,6 +3,7 @@
 Vale para un único proceso (Render gratis ejecuta uno). Si algún día hay varias
 instancias, habría que moverlo a Redis o a la base de datos.
 """
+import logging
 import threading
 import time
 from collections import defaultdict, deque
@@ -14,10 +15,35 @@ _hits: dict[str, deque] = defaultdict(deque)
 _MAX_KEYS = 20000  # tope de claves para que la memoria no crezca sin límite
 
 
+log = logging.getLogger("ratelimit")
+
+# Render tiene delante Cloudflare, que escribe la IP real del cliente en estas cabeceras y
+# sobrescribe lo que mande el cliente. X-Forwarded-For NO sirve: el cliente puede inventarse
+# el primer valor y Render solo añade el suyo al final.
+_IP_HEADERS = ("cf-connecting-ip", "true-client-ip")
+_source_logged = False
+
+
+def _note_source(source: str) -> None:
+    """Deja una línea en los logs (una vez por arranque) diciendo de dónde se saca la IP."""
+    global _source_logged
+    if not _source_logged:
+        _source_logged = True
+        log.warning("Límite de intentos: la IP del cliente se lee de %s", source)
+
+
 def client_ip(request: Request) -> str:
+    for header in _IP_HEADERS:
+        value = request.headers.get(header)
+        if value:
+            _note_source(header)
+            return value.strip()
+    # Sin Cloudflare delante (desarrollo local): se usa X-Forwarded-For como antes
     xff = request.headers.get("x-forwarded-for")
     if xff:
+        _note_source("x-forwarded-for (no fiable: revisa que Cloudflare mande CF-Connecting-IP)")
         return xff.split(",")[0].strip()
+    _note_source("la conexión directa")
     return request.client.host if request.client else "unknown"
 
 

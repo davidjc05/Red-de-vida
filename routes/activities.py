@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -76,8 +76,10 @@ def my_activities(
 def clients_activities(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
+    days: int = Query(default=180, ge=1, le=3650),
 ):
-    """Solo entrenador: actividades agrupadas por cliente (clientes sin actividad incluidos)."""
+    """Solo entrenador: actividades de los últimos `days` días (180 por defecto), agrupadas por
+    cliente (clientes sin actividad incluidos)."""
     clients = (
         db.query(User)
         .filter(User.role != "admin", User.status == "active")
@@ -86,7 +88,10 @@ def clients_activities(
     )
     acts = (
         db.query(Activity)
-        .filter(Activity.user_id.in_([c.id for c in clients]))
+        .filter(
+            Activity.user_id.in_([c.id for c in clients]),
+            Activity.started_at >= datetime.utcnow() - timedelta(days=days),
+        )
         .order_by(Activity.started_at.desc())
         .all()
     ) if clients else []

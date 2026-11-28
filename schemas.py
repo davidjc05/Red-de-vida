@@ -18,6 +18,11 @@ class UserCreate(BaseModel):
     birth_date: Optional[date] = None
     accept_terms: bool = False  # el registro exige aceptar la política de privacidad
 
+    @field_validator("email")
+    @classmethod
+    def _email_lower(cls, v):
+        return v.strip().lower()
+
     @field_validator("birth_date")
     @classmethod
     def _birth_ok(cls, v):

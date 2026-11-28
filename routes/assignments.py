@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from datetime import datetime, date, timedelta
-from typing import Literal
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 from database import get_db
@@ -105,20 +105,29 @@ def copy_week(
     if not targets:
         raise HTTPException(400, "No hay clientes activos de destino")
 
+    # Lo que ya tienen los destinatarios en las semanas de destino, de una sola consulta
+    target_ids = [t.id for t in targets]
+    existing = {
+        (uid, rid, d)
+        for uid, rid, d in db.query(Assignment.assigned_to_id, Assignment.routine_id, Assignment.date)
+        .filter(
+            Assignment.assigned_to_id.in_(target_ids),
+            Assignment.date >= tgt_monday,
+            Assignment.date < tgt_monday + timedelta(days=7 * data.weeks),
+        )
+    }
+
     created = skipped = 0
     for week in range(data.weeks):
         shift = (tgt_monday - src_monday) + timedelta(days=7 * week)
         for target in targets:
             for a in source:
                 new_date = a.date + shift
-                exists = db.query(Assignment.id).filter(
-                    Assignment.assigned_to_id == target.id,
-                    Assignment.routine_id == a.routine_id,
-                    Assignment.date == new_date,
-                ).first()
-                if exists:
+                key = (target.id, a.routine_id, new_date)
+                if key in existing:
                     skipped += 1
                     continue
+                existing.add(key)
                 db.add(Assignment(
                     routine_id=a.routine_id,
                     assigned_to_id=target.id,
@@ -155,11 +164,10 @@ def assign_routine(
         )
 
     assignments = []
+    found = {i for (i,) in db.query(User.id).filter(User.id.in_(data.assigned_to_ids))}
 
     for user_id in data.assigned_to_ids:
-        target = db.query(User).filter(User.id == user_id).first()
-
-        if not target:
+        if user_id not in found:
             continue
 
         assignment = Assignment(
@@ -281,21 +289,29 @@ def my_assignments(
 def clients_assignments(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
+    start: Optional[date] = None,
+    end: Optional[date] = None,
 ):
-    assignments = (
+    """Sesiones de los clientes. La app pide solo las fechas del mes que se está viendo
+    (start/end); sin ellas devuelve todo, como antes."""
+    query = (
         db.query(Assignment)
         .options(
-            joinedload(Assignment.routine)
-            .joinedload(Routine.blocks)
-            .joinedload(Block.exercises)
-            .joinedload(BlockExercise.exercise),
-            joinedload(Assignment.assigned_to),
+            # selectinload: una consulta por nivel en vez de un JOIN enorme con filas repetidas
+            selectinload(Assignment.routine)
+            .selectinload(Routine.blocks)
+            .selectinload(Block.exercises)
+            .selectinload(BlockExercise.exercise),
+            selectinload(Assignment.assigned_to),
         )
         .join(User, Assignment.assigned_to_id == User.id)
         .filter(User.role != "admin")
-        .order_by(Assignment.date)
-        .all()
     )
+    if start:
+        query = query.filter(Assignment.date >= start)
+    if end:
+        query = query.filter(Assignment.date <= end)
+    assignments = query.order_by(Assignment.date).all()
 
     result = []
     for a in assignments:

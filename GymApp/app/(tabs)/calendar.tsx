@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator,
@@ -96,6 +96,7 @@ export default function CalendarScreen() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const loadedOnce = useRef(false);
 
   const C = {
     bg:      isDark ? '#111111' : '#F2F5EE',
@@ -106,12 +107,19 @@ export default function CalendarScreen() {
   };
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      setLoading(true);
+      // El aviso de "Cargando agenda…" solo la primera vez; al cambiar de mes se actualiza sin parpadeo
+      if (!loadedOnce.current) setLoading(true);
       try {
         const admin = (await getRole()) === 'admin';
         setIsAdmin(admin);
-        const data = admin ? await getClientAssignments() : await getMyAssignments();
+        // La entrenadora pide solo las semanas del mes que está viendo (no todo el histórico)
+        const weeks = getMonthGrid(viewYear, viewMonth);
+        const data = admin
+          ? await getClientAssignments(toDateString(weeks[0][0]), toDateString(weeks[weeks.length - 1][6]))
+          : await getMyAssignments();
+        if (cancelled) return;
         if (!data || !Array.isArray(data)) { setAssignments([]); return; }
         const adapted = data.map((a: any) => ({
           id: String(a.id),
@@ -155,9 +163,12 @@ export default function CalendarScreen() {
 
         setActiveWorkout(admin ? [] : confirmed);
       } catch (e) { console.error(e); }
-      finally { setLoading(false); }
+      finally {
+        if (!cancelled) { loadedOnce.current = true; setLoading(false); }
+      }
     })();
-  }, [reloadKey]);
+    return () => { cancelled = true; };
+  }, [reloadKey, viewYear, viewMonth]);
 
   const grid = getMonthGrid(viewYear, viewMonth);
   const eventsOnDay = (d: Date) => assignments.filter(a => a.due_date === toDateString(d));

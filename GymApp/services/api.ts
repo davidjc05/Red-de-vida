@@ -187,6 +187,8 @@ export async function changePassword(current_password: string, new_password: str
   });
   const data = await res.json();
   if (!res.ok) throw new Error(detailToText(data.detail, 'No se pudo cambiar la contraseña'));
+  // Al cambiar la contraseña se cierran las demás sesiones; esta recibe un token nuevo
+  if (data.access_token) await saveToken(data.access_token);
   return data;
 }
 
@@ -524,9 +526,13 @@ export async function getMyAssignments() {
   return data;
 }
 
-// Entrenador: sesiones de todos sus clientes (con nombre del cliente)
-export async function getClientAssignments() {
-  const res = await authFetch('/assignments/clients');
+// Entrenador: sesiones de sus clientes (con nombre del cliente) entre dos fechas AAAA-MM-DD
+export async function getClientAssignments(start?: string, end?: string) {
+  const params = new URLSearchParams();
+  if (start) params.set('start', start);
+  if (end) params.set('end', end);
+  const query = params.toString() ? `?${params}` : '';
+  const res = await authFetch(`/assignments/clients${query}`);
   const data = await res.json();
   if (!res.ok) {
     throw new Error(detailToText(data.detail, 'Error al cargar sesiones de clientes'));
