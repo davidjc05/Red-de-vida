@@ -9,7 +9,7 @@ import sys
 sys.path.append("..")
 
 from database import get_db
-from models import Exercise
+from models import Exercise, WorkoutLog
 from schemas import ExerciseCreate, ExerciseOut
 
 router = APIRouter(prefix="/exercises", tags=["🏋️ Ejercicios"])
@@ -57,6 +57,13 @@ def delete_exercise(
 
     if not exercise:
         raise HTTPException(status_code=404, detail="Ejercicio no encontrado")
+
+    if db.query(WorkoutLog.id).filter(WorkoutLog.exercise_id == exercise_id).first():
+        raise HTTPException(
+            status_code=409,
+            detail="Hay clientes con series registradas en este ejercicio. "
+                   "No se puede borrar sin perder su historial.",
+        )
 
     db.delete(exercise)
     db.commit()

@@ -17,6 +17,15 @@ from fastapi.testclient import TestClient
 
 import ratelimit
 from main import app
+from database import engine
+from sqlalchemy import event
+
+
+# SQLite no comprueba las claves foráneas si no se le pide; Postgres (producción) sí.
+# Se activan para que los tests fallen igual que fallaría el servidor de verdad.
+@event.listens_for(engine, "connect")
+def _foreign_keys_on(dbapi_conn, _record):
+    dbapi_conn.execute("PRAGMA foreign_keys=ON")
 
 
 @pytest.fixture()

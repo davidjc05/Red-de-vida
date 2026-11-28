@@ -141,7 +141,7 @@ def copy_week(
 def assign_routine(
     data: AssignmentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),  # solo la entrenadora asigna rutinas
 ):
     routine = db.query(Routine).filter(Routine.id == data.routine_id).first()
 
@@ -573,6 +573,13 @@ def delete_assignment(
         raise HTTPException(
             status_code=403,
             detail="No autorizado"
+        )
+
+    if db.query(WorkoutLog.id).filter(WorkoutLog.assignment_id == assignment_id).first():
+        raise HTTPException(
+            status_code=409,
+            detail="El cliente ya registró series en este entrenamiento. "
+                   "No se puede borrar sin perder su historial.",
         )
 
     db.delete(assignment)

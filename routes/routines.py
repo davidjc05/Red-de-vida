@@ -5,7 +5,7 @@ from datetime import date
 from pydantic import BaseModel, Field
 
 from database import get_db
-from models import Routine, User, RoutineExercise, Block, BlockExercise, Exercise
+from models import Assignment, Routine, User, RoutineExercise, Block, BlockExercise, Exercise, WorkoutLog
 from schemas import RoutineCreate, RoutineUpdate
 from permissions import require_admin, get_routine_or_403
 from auth.auth import get_current_user
@@ -164,7 +164,7 @@ def list_routines(
 def create_routine(
     routine_in: RoutineCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),  # solo la entrenadora crea rutinas
 ):
     db_routine = Routine(
         name=routine_in.name,
@@ -352,8 +352,20 @@ def delete_routine(
     if current_user.role != "admin" and routine.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="No autorizado")
 
+    # Si algún cliente ya registró series en esta rutina, no se borra: se perdería su historial
+    if (
+        db.query(WorkoutLog.id)
+        .join(Assignment, WorkoutLog.assignment_id == Assignment.id)
+        .filter(Assignment.routine_id == routine_id)
+        .first()
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Esta rutina tiene entrenamientos con series registradas por clientes y no se puede "
+                   "borrar sin perder ese historial. Puedes editarla o duplicarla.",
+        )
+
     # Borrar asignaciones primero
-    from models import Assignment  # ajusta el import si es diferente
     db.query(Assignment).filter(Assignment.routine_id == routine_id).delete(synchronize_session=False)
 
     # Borrar bloques y sus ejercicios
