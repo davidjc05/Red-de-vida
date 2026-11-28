@@ -63,7 +63,8 @@ app.include_router(forms.router)
 app.include_router(tracking.router)
 
 
-@app.get("/", tags=["Home"])
+# HEAD también: algunos monitores (UptimeRobot, Render) comprueban con HEAD en vez de GET
+@app.api_route("/", methods=["GET", "HEAD"], tags=["Home"])
 def home():
     return {
         "msg": "Gym API funcionando",
@@ -72,7 +73,7 @@ def home():
     }
 
 
-@app.get("/health", tags=["Home"])
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["Home"])
 def health():
     """Comprobación ligera para un monitor externo (UptimeRobot): mantiene
     despierto el servidor y la base de datos."""

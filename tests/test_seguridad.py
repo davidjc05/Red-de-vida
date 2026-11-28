@@ -29,6 +29,9 @@ def _admin(c):
 def test_health(client):
     r = client.get("/health")
     assert r.status_code == 200 and r.json() == {"status": "ok"}
+    # Los monitores que preguntan con HEAD también reciben 200 (antes, 405)
+    assert client.head("/health").status_code == 200
+    assert client.head("/").status_code == 200
 
 
 def test_flujo_cliente_y_permisos(client):
